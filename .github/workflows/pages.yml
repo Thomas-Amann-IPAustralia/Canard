@@ -23,6 +23,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      # The model and runtime files rarely change, so keep them between runs.
+      - uses: actions/cache@v4
+        with:
+          path: .asset-cache
+          key: model-assets-${{ hashFiles('scripts/fetch-model-assets.mjs', 'site/js/schema.js', 'site/js/workers/embed.worker.js') }}
       - name: Assemble the site
         env:
           API_URL: ${{ vars.CANARD_API_URL }}
@@ -30,6 +38,8 @@ jobs:
           mkdir -p _site
           cp -r site/. _site/
           cp -r data _site/data
+          # A copy of the embedding model and its runtime, for networks that block Hugging Face or jsDelivr.
+          node scripts/fetch-model-assets.mjs _site .asset-cache
           touch _site/.nojekyll
           if [ -n "$API_URL" ]; then
             node -e 'process.stdout.write("window.CANARD_CONFIG = { apiBase: " + JSON.stringify(process.env.API_URL) + " };\n")' > _site/config.js

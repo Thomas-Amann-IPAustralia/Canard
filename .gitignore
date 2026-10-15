@@ -7,3 +7,8 @@ venv/
 _site/
 .DS_Store
 *.tmp
+# Model and runtime copies made by scripts/fetch-model-assets.mjs
+.asset-cache/
+site/vendor/transformers/
+site/vendor/onnxruntime-web/
+site/models/Xenova/

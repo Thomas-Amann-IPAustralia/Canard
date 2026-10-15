@@ -1,7 +1,13 @@
 // Runs the embedding model (transformers.js) off the main thread.
-// The model files are downloaded once from Hugging Face and cached by the browser.
+// The model files are downloaded once and cached by the browser. The published site
+// carries its own copy of the library, the ONNX Runtime files and the model (see
+// scripts/fetch-model-assets.mjs), because many workplace networks block Hugging Face
+// or jsDelivr. Without those copies (for example on the dev server) it uses the CDNs.
 
 const TRANSFORMERS_URL = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.2.0/dist/transformers.min.js';
+const LOCAL_TRANSFORMERS = new URL('../../vendor/transformers/transformers.min.js', import.meta.url).href;
+const LOCAL_ORT = new URL('../../vendor/onnxruntime-web/', import.meta.url).href;
+const LOCAL_MODELS = new URL('../../models/', import.meta.url).href;
 
 let extractor = null;
 let device = null;
@@ -10,9 +16,46 @@ function post(type, data = {}, transfer = []) {
   self.postMessage({ type, ...data }, transfer);
 }
 
+async function exists(url) {
+  try {
+    const res = await fetch(url, { method: 'HEAD', cache: 'no-cache' });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Import transformers.js from the site's own copy if it has one, otherwise from jsDelivr. */
+async function importTransformers() {
+  if (await exists(LOCAL_TRANSFORMERS)) {
+    const lib = await import(LOCAL_TRANSFORMERS);
+    // Point ONNX Runtime at the matching local files instead of jsDelivr.
+    const wasm = lib.env.backends.onnx?.wasm;
+    if (wasm?.wasmPaths && typeof wasm.wasmPaths === 'object') {
+      for (const [k, v] of Object.entries(wasm.wasmPaths)) wasm.wasmPaths[k] = LOCAL_ORT + v.split('/').pop();
+    } else if (wasm) {
+      wasm.wasmPaths = LOCAL_ORT;
+    }
+    return lib;
+  }
+  try {
+    return await import(TRANSFORMERS_URL);
+  } catch (e) {
+    throw new Error(`Could not download the embedding library from cdn.jsdelivr.net. Your network may be blocking it. (${e?.message || e})`);
+  }
+}
+
 async function load({ model, dtype, preferGpu }) {
-  const { pipeline, env } = await import(TRANSFORMERS_URL);
+  const { pipeline, env } = await importTransformers();
+  // Use the site's copy of the model when it has one; otherwise download it from Hugging Face.
+  // The copy is set up as the "remote" host because transformers.js checks remote files
+  // with one-byte range requests, but downloads local files in full just to check them.
+  const local = await exists(`${LOCAL_MODELS}${model}/config.json`);
   env.allowLocalModels = false;
+  if (local) {
+    env.remoteHost = LOCAL_MODELS;
+    env.remotePathTemplate = '{model}/';
+  }
   env.useBrowserCache = true;
   const files = new Map();
   const progress_callback = (p) => {
@@ -30,7 +73,15 @@ async function load({ model, dtype, preferGpu }) {
     try { gpu = Boolean(await self.navigator.gpu.requestAdapter()); } catch { gpu = false; }
   }
   const d = gpu ? 'webgpu' : 'wasm';
-  extractor = await pipeline('feature-extraction', model, { dtype, device: d, progress_callback });
+  try {
+    extractor = await pipeline('feature-extraction', model, { dtype, device: d, progress_callback });
+  } catch (e) {
+    // A bare network error ("Failed to fetch") does not say which server was unreachable.
+    if (e instanceof TypeError && !local) {
+      throw new Error(`Could not download the embedding model from huggingface.co. Your network may be blocking it. (${e.message})`);
+    }
+    throw e;
+  }
   // A quick check that the device really works before committing to it.
   await extractor(['warm up'], { pooling: 'cls', normalize: true });
   device = d;

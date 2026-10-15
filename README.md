@@ -22,6 +22,7 @@ Canard turns a hand-made spreadsheet of sources into a semantic map. Each row's 
 ```
 
 - **The heavy work happens in the browser.** Render's free tier has a tenth of a CPU, so the uploader's browser validates the CSV, runs the embedding model ([bge-small-en-v1.5](https://huggingface.co/BAAI/bge-small-en-v1.5) through [transformers.js](https://github.com/huggingface/transformers.js), on the GPU where available) and computes all four layouts in web workers.
+- **Nothing comes from third-party servers on the published site.** Many workplace networks block Hugging Face and jsDelivr, so the Pages workflow copies the model, transformers.js and the ONNX Runtime files onto the site (`scripts/fetch-model-assets.mjs`). The browser only falls back to those servers when the copies are missing, for example on the dev server.
 - **The server is small.** It checks passwords, repeats every validation check (including the token limit, with the same tokenizer), and commits the result to `data/` as a single commit through the GitHub API.
 - **Switching views is instant** because all four layouts are calculated at upload time and stored. Switching only animates points between stored positions.
 - **New uploads keep the map's orientation.** Each new layout is rotated to line up with the previous one, so existing clusters stay roughly where they were.
@@ -141,6 +142,10 @@ cd server
 CANARD_STORE=local CANARD_ADMIN_PASSWORD=admin CANARD_SESSION_SECRET=dev uvicorn app.main:app --port 8787
 # in another terminal, from the repository root
 CANARD_API_URL=http://localhost:8787 node scripts/dev-server.mjs 8000
+
+# Optional: copy the model and runtime into site/ (ignored by git), as the Pages workflow does,
+# so the dev server needs no access to Hugging Face or jsDelivr
+node scripts/fetch-model-assets.mjs
 ```
 
 An end-to-end test drives the whole workflow in Chromium (upload, views, lasso, tagging, reload and deletion):

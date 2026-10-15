@@ -9,14 +9,20 @@ import { tagSession, onSessionChange, unlock, lock, sendTags, renderTaggingButto
 import { API_BASE, onStatus, wake } from './api.js';
 import { loadIndex, loadPlot, noteVersion, knownVersion, emptyIndex } from './data.js';
 import { toCsv } from './csv.js';
+import { TERRITORY_VIEW, UNCLUSTERED, describeClusters, territoryMarkers, clusterValueLabel } from './cluster-view.js';
 
 const LIST_PAGE = 100;
+// The projections, then the growth territories view.
+const VIEWS = [...METHODS, TERRITORY_VIEW];
+const CLUSTER_COLOURS = new Set(['topic', 'territory']);
 
 const state = {
   index: emptyIndex(),
   plot: null,
   points: [],
   coords: {},
+  clusters: null, // see describeClusters; null when the plot has none
+  colourBeforeTerritories: null,
   method: 'umap',
   tool: 'pan',
   selection: new Set(),
@@ -58,6 +64,19 @@ function sheetName(id) {
   return state.plot?.sheets.find((s) => s.id === id)?.filename || id;
 }
 
+/** How a value of the current "colour by" field is written. */
+function valueLabel(by, v) {
+  if (v === UNTAGGED) return 'Untagged';
+  if (by === 'sheet') return sheetName(v);
+  if (CLUSTER_COLOURS.has(by)) return clusterValueLabel(state.clusters, by, v);
+  return v;
+}
+
+/** Colouring by clusters falls back to source type on a plot without clusters. */
+function colourField() {
+  return CLUSTER_COLOURS.has(state.colourBy) && !state.clusters ? 'sourceType' : state.colourBy;
+}
+
 function allTags() {
   const seen = new Map();
   for (const p of state.points) for (const t of p.tags || []) if (!seen.has(t.toLowerCase())) seen.set(t.toLowerCase(), t);
@@ -83,17 +102,49 @@ function renderPlotSelect() {
 
 function renderMethodSwitch() {
   const host = $('#method-switch');
-  host.replaceChildren(...METHODS.map((m, i) => el('button', {
+  host.replaceChildren(...VIEWS.map((m, i) => el('button', {
     type: 'button', role: 'radio', 'aria-checked': String(state.method === m.key), dataset: { method: m.key },
     title: `${m.blurb} (${i + 1})`, text: m.label, on: { click: () => setMethod(m.key) },
   })));
+  syncClusterControls();
+}
+
+/** Enable the territories view and the cluster colours only when the plot has clusters. */
+function syncClusterControls() {
+  const missing = 'Clusters have not been calculated for this plot yet. Choose Spreadsheets > Recalculate clusters.';
+  const button = $(`#method-switch [data-method="${TERRITORY_VIEW.key}"]`);
+  if (button) {
+    button.disabled = !state.clusters;
+    button.title = state.clusters ? `${TERRITORY_VIEW.blurb} (${VIEWS.length})` : missing;
+  }
+  for (const option of $$('#colour-by option')) {
+    if (!CLUSTER_COLOURS.has(option.value)) continue;
+    option.disabled = !state.clusters;
+    option.title = state.clusters ? '' : missing;
+  }
+  $('#colour-by').value = colourField();
+}
+
+/** Centroid markers in the territories view; topic labels when colouring by topic. */
+function updateOverlay() {
+  const info = state.clusters;
+  scatter.setOverlay({
+    anchors: info && state.method === TERRITORY_VIEW.key ? territoryMarkers() : [],
+    groups: info && colourField() === 'topic' ? info.topics.map((t) => ({ text: t.short, members: t.members })) : [],
+  });
 }
 
 function renderLegend(legend) {
   const host = $('#legend');
   host.replaceChildren();
-  if (state.colourBy === 'none' || !state.points.length) return;
-  if (state.colourBy === 'date') {
+  const by = colourField();
+  if (state.points.length && !state.clusters) {
+    host.append(el('span', { class: 'legend-note' },
+      el('span', { text: 'Topic clusters and growth territories have not been calculated for this plot. ' }),
+      el('button', { type: 'button', class: 'link-btn', text: 'Calculate them', on: { click: () => openManageDialog() } })));
+  }
+  if (by === 'none' || !state.points.length) return;
+  if (by === 'date') {
     const ramp = legend[0];
     if (!ramp) return;
     const steps = el('span', { class: 'legend-ramp', role: 'img', 'aria-label': `Colour shows publication date in seven equal-sized groups, from ${ramp.from} to ${ramp.to}; half the entries are from ${ramp.mid} or earlier` },
@@ -107,7 +158,7 @@ function renderLegend(legend) {
     const swatch = el('span', { class: 'swatch', style: `background:${row.colour}` });
     if (row.kind === 'value') {
       host.append(el('button', {
-        type: 'button', class: 'legend-item', title: 'Stop highlighting this value',
+        type: 'button', class: 'legend-item', title: `${row.label} (click to stop highlighting it)`,
         on: { click: () => { setHighlights(toggleHighlight(currentHighlights(), row.value)); } },
       }, swatch, el('span', { class: 'legend-label', text: row.label }), el('span', { class: 'legend-count', text: row.count.toLocaleString('en-AU') })));
     } else {
@@ -115,7 +166,8 @@ function renderLegend(legend) {
     }
   }
   // Choose which values are highlighted (at most three, so colours stay distinguishable).
-  const values = allValues(state.points, state.colourBy);
+  const values = allValues(state.points, by);
+  if (by === 'territory') values.sort((a, b) => valueLabel(by, a[0]).localeCompare(valueLabel(by, b[0]), 'en-AU', { numeric: true }));
   const picked = new Set(currentHighlights().map(([v]) => v));
   const menu = el('details', { class: 'menu legend-menu' },
     el('summary', { class: 'link-btn', text: 'Choose colours' }),
@@ -124,14 +176,14 @@ function renderLegend(legend) {
       el('div', { class: 'check-list' }, values.map(([v, count]) => {
         const input = el('input', { type: 'checkbox', checked: picked.has(v) });
         input.addEventListener('change', () => setHighlights(toggleHighlight(currentHighlights(), v), true));
-        const label = v === UNTAGGED ? 'Untagged' : state.colourBy === 'sheet' ? sheetName(v) : v;
-        return el('label', { class: 'check' }, input, el('span', { class: 'check-label', text: label }), el('span', { class: 'check-count', text: String(count) }));
+        const label = valueLabel(by, v);
+        return el('label', { class: 'check', title: label }, input, el('span', { class: 'check-label', text: label }), el('span', { class: 'check-count', text: String(count) }));
       }))));
   host.append(menu);
 }
 
 function currentHighlights() {
-  const by = state.colourBy;
+  const by = colourField();
   if (!state.highlights[by]) {
     state.highlights[by] = defaultHighlights(state.points, by).map((v, i) => [v, i + 1]);
   }
@@ -139,18 +191,19 @@ function currentHighlights() {
 }
 
 function setHighlights(next, keepMenuOpen = false) {
-  state.highlights[state.colourBy] = next;
+  state.highlights[colourField()] = next;
   refreshColours();
   if (keepMenuOpen) $('.legend-menu')?.setAttribute('open', '');
 }
 
 function refreshColours() {
   if (!state.theme) state.theme = readThemeColours();
-  const labelFor = state.colourBy === 'sheet' ? sheetName : (v) => v;
-  const highlights = state.colourBy === 'none' || state.colourBy === 'date' ? [] : currentHighlights();
-  const { colourIdx, palette, legend } = colourPoints(state.points, state.colourBy, highlights, state.theme, state.visible, labelFor);
+  const by = colourField();
+  const highlights = by === 'none' || by === 'date' ? [] : currentHighlights();
+  const { colourIdx, palette, legend } = colourPoints(state.points, by, highlights, state.theme, state.visible, (v) => valueLabel(by, v));
   scatter.setAppearance({ colourIdx, palette });
   renderLegend(legend);
+  updateOverlay();
 }
 
 function renderEntryList() {
@@ -202,7 +255,7 @@ function renderEmptyState() {
 
 /** Re-apply filters and redraw everything that depends on them. */
 function refresh() {
-  renderFilters(state.filters, state.points, state.plot?.sheets || [], onFiltersChanged);
+  renderFilters(state.filters, state.points, state.plot?.sheets || [], onFiltersChanged, state.clusters);
   const { visible, count } = computeVisible(state.points, state.filters);
   state.visible = visible;
   state.visibleCount = count;
@@ -237,13 +290,36 @@ const onFiltersChanged = () => {
 // ---- actions ----------------------------------------------------------------
 
 function setMethod(key, { animate = true } = {}) {
-  if (!METHODS.some((m) => m.key === key)) return;
+  if (!VIEWS.some((m) => m.key === key)) return;
+  if (key === TERRITORY_VIEW.key && !state.clusters) return;
+  const entering = key === TERRITORY_VIEW.key && state.method !== key;
+  const leaving = key !== TERRITORY_VIEW.key && state.method === TERRITORY_VIEW.key;
   state.method = key;
   storage.set('canard.method', key);
   $$('#method-switch [role="radio"]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.method === key)));
+  // The territories view colours entries by territory; leaving it restores the
+  // previous colouring unless it was changed in the meantime.
+  if (entering && state.colourBy !== 'territory') {
+    state.colourBeforeTerritories = state.colourBy;
+    setColourBy('territory', { remember: false });
+  } else if (leaving && state.colourBeforeTerritories && state.colourBy === 'territory') {
+    setColourBy(state.colourBeforeTerritories, { remember: false });
+    state.colourBeforeTerritories = null;
+  }
+  updateOverlay();
   const coords = state.coords[key];
   if (coords) scatter.setPositions(coords, { animate, fit: true });
   writeHash();
+}
+
+function setColourBy(by, { remember = true } = {}) {
+  state.colourBy = by;
+  if (remember) {
+    storage.set('canard.colourBy', by);
+    state.colourBeforeTerritories = null;
+  }
+  $('#colour-by').value = colourField();
+  refreshColours();
 }
 
 function setTool(tool) {
@@ -372,6 +448,18 @@ function setPlotData({ plot, points, source }, { animate = false, keepSelection 
   state.points = points.points;
   state.source = source;
   state.coords = Object.fromEntries(Object.entries(points.coords).map(([k, v]) => [k, Float32Array.from(v)]));
+  state.clusters = describeClusters(points);
+  if (state.clusters) state.coords[TERRITORY_VIEW.key] = state.clusters.coords;
+  else if (state.method === TERRITORY_VIEW.key) {
+    state.method = 'umap';
+    $$('#method-switch [role="radio"]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.method === 'umap')));
+  }
+  // Opening a plot straight into the territories view colours it by territory too.
+  if (state.clusters && state.method === TERRITORY_VIEW.key && state.colourBy !== 'territory' && !state.colourBeforeTerritories) {
+    state.colourBeforeTerritories = state.colourBy;
+    state.colourBy = 'territory';
+  }
+  syncClusterControls();
   prepareSearch(state.points);
   const byId = pointIndexById();
   state.selection = new Set([...keepIds].filter((id) => byId.has(id)).map((id) => byId.get(id)));
@@ -437,6 +525,7 @@ function applyIndex(index, { removed = null } = {}) {
     state.plot = null;
     state.points = [];
     state.coords = {};
+    state.clusters = null;
     state.selection = new Set();
     state.focus = null;
     state.detailsOpen = false;
@@ -491,9 +580,13 @@ async function checkFreshness() {
 }
 
 function exportCsv() {
-  const rows = [['Title', 'Summary', 'Source link', 'Publication Date', 'Source type', 'Tags', 'Spreadsheet']];
+  const info = state.clusters;
+  const rows = [['Title', 'Summary', 'Source link', 'Publication Date', 'Source type', 'Tags', 'Spreadsheet',
+    ...(info ? ['Topic cluster', 'Growth territory'] : [])]];
   state.points.forEach((p, i) => {
-    if (state.visible[i]) rows.push([p.title, p.summary, p.link, p.date, p.sourceType, (p.tags || []).join('; '), sheetName(p.sheet)]);
+    if (!state.visible[i]) return;
+    rows.push([p.title, p.summary, p.link, p.date, p.sourceType, (p.tags || []).join('; '), sheetName(p.sheet),
+      ...(info ? [valueLabel('topic', p.topic), info.territories.find((t) => t.key === p.territory)?.name || ''] : [])]);
   });
   const name = (state.plot?.name || 'canard').replace(/[^\w-]+/g, '-').toLowerCase();
   downloadText(`${name}-entries.csv`, `﻿${toCsv(rows)}`);
@@ -523,6 +616,8 @@ function showTooltip(i, clientX, clientY) {
   tip.replaceChildren(...[
     el('strong', { text: p.title }),
     el('span', { class: 'tooltip-meta', text: `${formatDate(p.date)} · ${p.sourceType}` }),
+    state.clusters ? el('span', { class: 'tooltip-meta', text: `Topic ${p.topic === UNCLUSTERED ? 'none (unclustered)' : valueLabel('topic', p.topic)}` }) : null,
+    state.clusters ? el('span', { class: 'tooltip-meta', text: `Closest territory: ${valueLabel('territory', p.territory)}` }) : null,
     p.tags?.length ? el('span', { class: 'tooltip-tags', text: p.tags.join(', ') }) : null,
     state.visible[i] ? null : el('span', { class: 'tooltip-note', text: 'Does not match the current filters' }),
   ].filter(Boolean));
@@ -584,6 +679,10 @@ function closeDrawers() {
   document.body.classList.remove('filters-open');
 }
 
+async function openManageDialog() {
+  (await import('./manage.js')).openManage(app);
+}
+
 let uploadModule = null;
 async function openUploadDialog() {
   uploadModule ??= await import('./upload.js');
@@ -608,11 +707,7 @@ function bindControls() {
   $('#btn-fit').addEventListener('click', () => scatter.fit());
   const colourBy = $('#colour-by');
   colourBy.value = state.colourBy;
-  colourBy.addEventListener('change', () => {
-    state.colourBy = colourBy.value;
-    storage.set('canard.colourBy', state.colourBy);
-    refreshColours();
-  });
+  colourBy.addEventListener('change', () => setColourBy(colourBy.value));
   const search = $('#filter-search');
   const onSearch = debounce(() => { state.filters.text = search.value; onFiltersChanged(); }, 150);
   search.addEventListener('input', onSearch);
@@ -632,7 +727,7 @@ function bindControls() {
   $('#btn-selection-open').addEventListener('click', () => { state.detailsOpen = true; refreshSelection(); });
   $('#btn-selection-clear').addEventListener('click', clearSelection);
   $('#btn-upload').addEventListener('click', openUploadDialog);
-  $('#btn-manage').addEventListener('click', async () => (await import('./manage.js')).openManage(app));
+  $('#btn-manage').addEventListener('click', openManageDialog);
   $('#btn-help').addEventListener('click', async () => { $('.app-header .menu').open = false; (await import('./manage.js')).openHelp(); });
   $('#btn-export').addEventListener('click', () => { $('.app-header .menu').open = false; exportCsv(); });
   $('#btn-theme').addEventListener('click', () => { $('.app-header .menu').open = false; applyTheme(currentTheme() === 'dark' ? 'light' : 'dark'); });
@@ -647,7 +742,7 @@ function bindControls() {
     const typing = e.target.closest('input, textarea, select, [contenteditable]');
     if (typing || e.metaKey || e.ctrlKey || e.altKey || document.querySelector('dialog[open]')) return;
     const n = Number(e.key);
-    if (n >= 1 && n <= METHODS.length) setMethod(METHODS[n - 1].key);
+    if (n >= 1 && n <= VIEWS.length) setMethod(VIEWS[n - 1].key);
     else if (e.key === 'l' || e.key === 'L') setTool('lasso');
     else if (e.key === 'p' || e.key === 'P') setTool('pan');
     else if (e.key === '0' && e.target !== $('#scatter')) scatter.fit();
@@ -671,7 +766,7 @@ async function start() {
     onEscape: clearSelection,
   });
   const hash = readHash();
-  state.method = METHODS.some((m) => m.key === hash.view) ? hash.view : storage.get('canard.method', 'umap');
+  state.method = VIEWS.some((m) => m.key === hash.view) ? hash.view : storage.get('canard.method', 'umap');
   renderMethodSwitch();
   bindControls();
   onThemeChanged();

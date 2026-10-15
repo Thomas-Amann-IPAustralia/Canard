@@ -32,7 +32,10 @@ export class Scatter {
     this.lasso = null;
     this.pointers = new Map();
     this.drag = null;
-    this.colours = { surface: '#fff', ink: '#000', dim: '#ccc', ring: '#fff', lassoFill: 'rgba(0,0,0,0.06)' };
+    this.colours = { surface: '#fff', ink: '#000', dim: '#ccc', ring: '#fff', lassoFill: 'rgba(0,0,0,0.06)', muted: '#666' };
+    // Drawn on top of the points: fixed markers (the growth territory centroids) and
+    // labels that follow groups of points (topic clusters).
+    this.overlay = { anchors: [], groups: [] };
     this.frame = 0;
     this.width = 0;
     this.height = 0;
@@ -84,6 +87,17 @@ export class Scatter {
     this.draw();
   }
 
+  /**
+   * anchors: [{ x, y, label, short }] in data coordinates, shown as labelled centroid
+   * markers (with the short label on narrow screens).
+   * groups: [{ text, members: Int32Array }], each labelled at its most central member
+   * (largest groups first; labels that would overlap a larger group's are skipped).
+   */
+  setOverlay({ anchors = [], groups = [] } = {}) {
+    this.overlay = { anchors, groups };
+    this.draw();
+  }
+
   setColours(colours) {
     this.colours = { ...this.colours, ...colours };
     this.draw();
@@ -108,14 +122,23 @@ export class Scatter {
       if (x < minX) minX = x; if (x > maxX) maxX = x;
       if (y < minY) minY = y; if (y > maxY) maxY = y;
     }
+    // Centroid markers stay in view (fitView leaves room for their labels).
+    for (const a of this.n ? this.overlay.anchors : []) {
+      minX = Math.min(minX, a.x); maxX = Math.max(maxX, a.x);
+      minY = Math.min(minY, a.y); maxY = Math.max(maxY, a.y);
+    }
     if (minX === Infinity) return { minX: -1, maxX: 1, minY: -1, maxY: 1 };
     return { minX, maxX, minY, maxY };
   }
 
   fitView(onlyVisible = false) {
     const b = this.boundsFor(this.to, onlyVisible);
-    const w = Math.max(1, this.width - 2 * PAD);
-    const h = Math.max(1, this.height - 2 * PAD);
+    // Centroid labels sit beside or above their markers, outside the points.
+    const labelled = this.overlay.anchors.length > 0;
+    const padX = PAD + (labelled ? (this.narrow() ? 12 : Math.min(180, this.width * 0.2)) : 0);
+    const padY = PAD + (labelled ? 22 : 0);
+    const w = Math.max(1, this.width - 2 * padX);
+    const h = Math.max(1, this.height - 2 * padY);
     const spanX = Math.max(b.maxX - b.minX, 0.05);
     const spanY = Math.max(b.maxY - b.minY, 0.05);
     const s = Math.min(w / spanX, h / spanY);
@@ -239,6 +262,9 @@ export class Scatter {
     this.screen = { sx, sy };
     const onScreen = (i) => sx[i] >= minX && sx[i] <= maxX && sy[i] >= minY && sy[i] <= maxY;
 
+    // Centroid rings sit under the entries so none are hidden; labels go on top.
+    this.paintAnchors({ rings: true });
+
     // Entries that do not match the filters sit underneath, faded.
     if (!this.hideNonMatching) {
       ctx.beginPath();
@@ -268,6 +294,9 @@ export class Scatter {
       ctx.fill();
       ctx.stroke();
     }
+
+    this.paintGroupLabels(sx, sy);
+    this.paintAnchors({ labels: true });
 
     // Selected entries: enlarged with an ink ring.
     if (this.selected.size) {
@@ -311,6 +340,96 @@ export class Scatter {
       ctx.stroke();
       ctx.setLineDash([]);
     }
+  }
+
+  /** Text with a halo in the surface colour, so it stays legible over points. */
+  haloText(text, x, y) {
+    const { ctx, colours } = this;
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = colours.surface;
+    ctx.strokeText(text, x, y);
+    ctx.fillText(text, x, y);
+  }
+
+  paintGroupLabels(sx, sy) {
+    const { ctx, colours } = this;
+    const { groups } = this.overlay;
+    if (!groups.length) return;
+    ctx.font = '600 12px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillStyle = colours.ink;
+    const placed = [];
+    for (const g of groups) {
+      // The shown member nearest the group's mean position.
+      let mx = 0; let my = 0; let count = 0;
+      for (const i of g.members) {
+        if (i >= this.n || this.visible[i] !== 1) continue;
+        mx += sx[i]; my += sy[i]; count += 1;
+      }
+      if (!count) continue;
+      mx /= count; my /= count;
+      let best = -1; let bestD = Infinity;
+      for (const i of g.members) {
+        if (i >= this.n || this.visible[i] !== 1) continue;
+        const d = (sx[i] - mx) ** 2 + (sy[i] - my) ** 2;
+        if (d < bestD) { bestD = d; best = i; }
+      }
+      const x = sx[best];
+      const y = sy[best] - POINT_RADIUS - 4;
+      const w = ctx.measureText(g.text).width + 8;
+      const box = { l: x - w / 2, r: x + w / 2, t: y - 16, b: y + 2 };
+      if (box.r < 0 || box.l > this.width || box.b < 0 || box.t > this.height) continue;
+      if (placed.some((p) => box.l < p.r && box.r > p.l && box.t < p.b && box.b > p.t)) continue;
+      placed.push(box);
+      this.haloText(g.text, x, y);
+    }
+  }
+
+  /** Narrow plots (phones) label centroid markers with their short label only. */
+  narrow() {
+    return this.width < 640;
+  }
+
+  paintAnchors({ rings = false, labels = false }) {
+    const { anchors } = this.overlay;
+    if (!anchors.length) return;
+    const { s, ox, oy } = this.view;
+    for (const a of anchors) {
+      const x = ox + a.x * s;
+      const y = oy - a.y * s;
+      if (rings) this.paintRing(x, y);
+      if (labels) this.paintAnchorLabel(a, x, y);
+    }
+  }
+
+  /** A hollow ring with a centre dot: distinct from the filled entry markers. */
+  paintRing(x, y) {
+    const { ctx, colours } = this;
+    ctx.beginPath();
+    ctx.arc(x, y, 9, 0, Math.PI * 2);
+    ctx.fillStyle = colours.surface;
+    ctx.fill();
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = colours.ink;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(x, y, 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = colours.ink;
+    ctx.fill();
+  }
+
+  /** A marker's label, on the side away from the centre of the layout. */
+  paintAnchorLabel(a, x, y) {
+    const { ctx, colours } = this;
+    const right = a.x > 0.15;
+    const left = a.x < -0.15;
+    ctx.font = '600 13px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+    ctx.textAlign = right ? 'left' : left ? 'right' : 'center';
+    ctx.textBaseline = right || left ? 'middle' : a.y > 0 ? 'bottom' : 'top';
+    ctx.fillStyle = colours.ink;
+    this.haloText(this.narrow() && a.short ? a.short : a.label, x + (right ? 14 : left ? -14 : 0), y + (right || left ? 0 : a.y > 0 ? -13 : 13));
   }
 
   // ---- hit testing ------------------------------------------------------------

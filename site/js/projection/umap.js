@@ -6,6 +6,10 @@ import { makeRng } from './linalg.js';
 // a and b for min_dist = 0.1 and spread = 1.0 (umap-learn's find_ab_params).
 const DEFAULT_A = 1.5769434603113077;
 const DEFAULT_B = 0.8950608779109733;
+// a and b for min_dist = 0.0 and spread = 1.0, used for the clustering embedding:
+// with no minimum distance, points in a cluster pack tightly, which suits HDBSCAN.
+export const CLUSTER_A = 1.9328083973431500;
+export const CLUSTER_B = 0.7904949732233831;
 
 /**
  * Fuzzy simplicial set from k-nearest neighbours (self excluded). Returns symmetric
@@ -89,10 +93,12 @@ function clip(v) {
 }
 
 /**
- * Optimise a 2-D UMAP layout. init is an n×2 Float64Array (for example PCA output).
- * Returns the embedding as an n×2 Float64Array.
+ * Optimise a UMAP embedding with nComponents dimensions (2 for the plotted layout,
+ * about 5 for clustering). init is an n×nComponents Float64Array (for example PCA
+ * output). Returns the embedding as an n×nComponents Float64Array.
  */
-export function umap(knn, n, init, { nNeighbors = 15, nEpochs = n <= 10000 ? 500 : 200, negativeSampleRate = 5, a = DEFAULT_A, b = DEFAULT_B, seed = 42, progress = () => {} } = {}) {
+export function umap(knn, n, init, { nComponents = 2, nNeighbors = 15, nEpochs = n <= 10000 ? 500 : 200, negativeSampleRate = 5, a = DEFAULT_A, b = DEFAULT_B, seed = 42, progress = () => {} } = {}) {
+  const dims = nComponents;
   const graph = fuzzySimplicialSet(knn, n, nNeighbors);
   let maxW = 0;
   for (const w of graph.weights) if (w > maxW) maxW = w;
@@ -116,48 +122,54 @@ export function umap(knn, n, init, { nNeighbors = 15, nEpochs = n <= 10000 ? 500
   const nextNeg = Float64Array.from(epochsPerNeg);
 
   // Scale the initial layout to [0, 10] on each axis, as umap-learn does.
-  const Y = new Float64Array(2 * n);
-  for (let c = 0; c < 2; c += 1) {
+  const Y = new Float64Array(dims * n);
+  for (let c = 0; c < dims; c += 1) {
     let lo = Infinity;
     let hi = -Infinity;
     for (let i = 0; i < n; i += 1) {
-      lo = Math.min(lo, init[2 * i + c]);
-      hi = Math.max(hi, init[2 * i + c]);
+      lo = Math.min(lo, init[dims * i + c]);
+      hi = Math.max(hi, init[dims * i + c]);
     }
     const span = hi - lo || 1;
-    for (let i = 0; i < n; i += 1) Y[2 * i + c] = (10 * (init[2 * i + c] - lo)) / span;
+    for (let i = 0; i < n; i += 1) Y[dims * i + c] = (10 * (init[dims * i + c] - lo)) / span;
   }
   const rng = makeRng(seed);
   const twoAB = 2 * a * b;
+  const delta = new Float64Array(dims);
   for (let epoch = 0; epoch < nEpochs; epoch += 1) {
     const alpha = 1 - epoch / nEpochs;
     for (let e = 0; e < m; e += 1) {
       if (nextSample[e] > epoch) continue;
-      const j = headA[e];
-      const k = tailA[e];
-      let dx = Y[2 * j] - Y[2 * k];
-      let dy = Y[2 * j + 1] - Y[2 * k + 1];
-      let d2 = dx * dx + dy * dy;
+      const j = dims * headA[e];
+      const k = dims * tailA[e];
+      let d2 = 0;
+      for (let c = 0; c < dims; c += 1) {
+        delta[c] = Y[j + c] - Y[k + c];
+        d2 += delta[c] * delta[c];
+      }
       if (d2 > 0) {
         const pb = Math.exp(b * Math.log(d2));
         const coeff = (-twoAB * pb / d2) / (a * pb + 1);
-        const gx = clip(coeff * dx) * alpha;
-        const gy = clip(coeff * dy) * alpha;
-        Y[2 * j] += gx; Y[2 * j + 1] += gy;
-        Y[2 * k] -= gx; Y[2 * k + 1] -= gy;
+        for (let c = 0; c < dims; c += 1) {
+          const g = clip(coeff * delta[c]) * alpha;
+          Y[j + c] += g;
+          Y[k + c] -= g;
+        }
       }
       nextSample[e] += epochsPerSample[e];
       const nNeg = Math.floor((epoch - nextNeg[e]) / epochsPerNeg[e]);
       for (let p = 0; p < nNeg; p += 1) {
         const r = Math.floor(rng() * n);
-        if (r === j) continue;
-        dx = Y[2 * j] - Y[2 * r];
-        dy = Y[2 * j + 1] - Y[2 * r + 1];
-        d2 = dx * dx + dy * dy;
+        if (r === headA[e]) continue;
+        const ro = dims * r;
+        d2 = 0;
+        for (let c = 0; c < dims; c += 1) {
+          delta[c] = Y[j + c] - Y[ro + c];
+          d2 += delta[c] * delta[c];
+        }
         if (d2 > 0) {
           const coeff = (2 * b) / ((0.001 + d2) * (a * Math.exp(b * Math.log(d2)) + 1));
-          Y[2 * j] += clip(coeff * dx) * alpha;
-          Y[2 * j + 1] += clip(coeff * dy) * alpha;
+          for (let c = 0; c < dims; c += 1) Y[j + c] += clip(coeff * delta[c]) * alpha;
         }
       }
       nextNeg[e] += nNeg * epochsPerNeg[e];

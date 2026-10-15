@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from app.config import Settings
 from app.main import create_app
-from app.schema import EMBEDDING, METHOD_KEYS
+from app.schema import CLUSTERS, EMBEDDING, METHOD_KEYS
 from app.store import LocalStore
 
 HEADER = "Title,Summary,Source link,Publication Date,Source type\n"
@@ -32,6 +32,12 @@ def layout(count, seed=0):
     return {k: [round(rng.uniform(-1, 1), 4) for _ in range(2 * count)] for k in METHOD_KEYS}
 
 
+def clusters(count, seed=0):
+    rng = random.Random(seed)
+    return {"topic": [rng.randint(-1, min(2, count - 1)) for _ in range(count)],
+            "territory": [round(rng.uniform(0.3, 0.9), 4) for _ in range(CLUSTERS["territories"] * count)]}
+
+
 def upload_body(n, *, base_ids=(), plot_id=None, name="Test plot", password="admin-pw", csv=None, start=0):
     body = {
         "password": password,
@@ -42,6 +48,8 @@ def upload_body(n, *, base_ids=(), plot_id=None, name="Test plot", password="adm
         "coords": layout(len(base_ids) + n),
         "layoutParams": {"tsne": {"perplexity": 5}},
         "embedding": {k: EMBEDDING[k] for k in ("model", "dtype", "pooling", "normalize", "dim")},
+        "clusters": clusters(len(base_ids) + n, start),
+        "clusterParams": {"topics": {"minClusterSize": 3}, "territories": {"version": "test"}},
     }
     if plot_id:
         body["plotId"] = plot_id
@@ -209,6 +217,75 @@ def test_delete_sheet_and_plot(client, data_dir):
     assert r.json()["index"]["plots"] == []
     assert not (data_dir / f"plots/{pid}").exists()
     assert client.post(f"/api/plots/{pid}/delete", json={"password": "admin-pw"}).status_code == 404
+
+
+def test_upload_stores_clusters(client, data_dir):
+    body = upload_body(4)
+    out = client.post("/api/upload", json=body).json()
+    pid = out["plot"]["id"]
+    points = read(data_dir, f"plots/{pid}/points.json")
+    assert points["clusters"] == body["clusters"]
+    plot = read(data_dir, f"plots/{pid}/plot.json")
+    assert plot["clustering"]["params"] == body["clusterParams"]
+    # Each kind of cluster data is kept on one line.
+    text = (data_dir / f"plots/{pid}/points.json").read_text()
+    assert '\n    "topic": [' in text and '\n    "territory": [' in text
+    # An upload from a page without clustering drops the old clusters rather than keeping stale ones.
+    ids = [p["id"] for p in out["points"]["points"]]
+    older = upload_body(2, base_ids=ids, plot_id=pid, start=10)
+    del older["clusters"], older["clusterParams"]
+    out = client.post("/api/upload", json=older).json()
+    assert "clusters" not in out["points"]
+    assert "clustering" not in out["plot"]
+
+
+def test_upload_rejects_bad_clusters(client):
+    for change in (
+        lambda c: c.update(topic=c["topic"][:-1]),
+        lambda c: c.update(topic=[5] + c["topic"][1:]),
+        lambda c: c.update(topic=[True] + c["topic"][1:]),
+        lambda c: c.update(territory=c["territory"][:-1]),
+        lambda c: c.update(territory=[1.5] + c["territory"][1:]),
+        lambda c: c.update(territory=["x"] + c["territory"][1:]),
+    ):
+        body = upload_body(3)
+        change(body["clusters"])
+        r = client.post("/api/upload", json=body)
+        assert r.status_code == 400 and r.json()["error"]["code"] == "BAD_CLUSTERS", r.text
+
+
+def test_delete_sheet_keeps_remaining_clusters(client, data_dir):
+    a = client.post("/api/upload", json=upload_body(3)).json()
+    pid = a["plot"]["id"]
+    ids = [p["id"] for p in a["points"]["points"]]
+    body = upload_body(2, base_ids=ids, plot_id=pid, start=20)
+    client.post("/api/upload", json=body)
+    out = client.post(f"/api/plots/{pid}/sheets/{a['sheet']}/delete", json={"password": "admin-pw"}).json()
+    k = CLUSTERS["territories"]
+    assert out["points"]["clusters"] == {"topic": body["clusters"]["topic"][3:],
+                                         "territory": body["clusters"]["territory"][3 * k:]}
+
+
+def test_recalculate_clusters(client, data_dir):
+    out = client.post("/api/upload", json=upload_body(3)).json()
+    pid = out["plot"]["id"]
+    ids = [p["id"] for p in out["points"]["points"]]
+    new = clusters(3, seed=99)
+    body = {"password": "admin-pw", "baseIds": ids, "clusters": new, "clusterParams": {"territories": {"version": "v2"}}}
+    assert client.post(f"/api/plots/{pid}/clusters", json={**body, "password": "wrong"}).status_code == 401
+    stale = client.post(f"/api/plots/{pid}/clusters", json={**body, "baseIds": ids[:2]})
+    assert stale.json()["error"]["code"] == "PLOT_CHANGED"
+    bad = client.post(f"/api/plots/{pid}/clusters", json={**body, "clusters": clusters(2)})
+    assert bad.json()["error"]["code"] == "BAD_CLUSTERS"
+    r = client.post(f"/api/plots/{pid}/clusters", json=body)
+    assert r.status_code == 200, r.text
+    assert r.json()["plot"]["version"] == 2
+    points = read(data_dir, f"plots/{pid}/points.json")
+    assert points["clusters"] == new
+    assert points["coords"] == out["points"]["coords"]
+    assert read(data_dir, f"plots/{pid}/plot.json")["clustering"]["params"] == {"territories": {"version": "v2"}}
+    assert read(data_dir, "index.json")["plots"][0]["version"] == 2
+    assert client.post("/api/plots/missing-plot/clusters", json=body).status_code == 404
 
 
 def test_data_proxy_is_restricted(client):

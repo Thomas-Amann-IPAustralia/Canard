@@ -4,7 +4,7 @@ Layout (paths relative to the data directory):
 
     index.json                              list of plots
     plots/<plot>/plot.json                  plot details, embedding model, spreadsheets
-    plots/<plot>/points.json                every entry with tags and 2-D coordinates
+    plots/<plot>/points.json                every entry with tags, 2-D coordinates and clusters
     plots/<plot>/sheets/<sheet>/source.csv  the spreadsheet as uploaded
     plots/<plot>/sheets/<sheet>/vectors.json the embedding vector of each entry
 
@@ -73,7 +73,7 @@ def dump_plot(plot: dict) -> bytes:
 
 
 def dump_points(points: dict) -> bytes:
-    return dumps_doc(points, rows=("points",), keyed_rows=("coords",))
+    return dumps_doc(points, rows=("points",), keyed_rows=("coords", "clusters"))
 
 
 def dump_vectors(doc: dict) -> bytes:

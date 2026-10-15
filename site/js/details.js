@@ -3,6 +3,7 @@
 import { $, el, icon, formatDate, plural } from './ui.js';
 import { tagSession, unlock } from './tagging.js';
 import { LIMITS } from './schema.js';
+import { UNCLUSTERED, clusterValueLabel, entrySimilarities } from './cluster-view.js';
 
 function paragraphs(text) {
   return text.split(/\n{2,}/).map((para) => el('p', {}, para.split('\n').flatMap((line, i) => (i ? [el('br'), line] : [line]))));
@@ -67,6 +68,31 @@ function tagEditor(app, { chips, ids, label }) {
   return wrap;
 }
 
+/** Where an entry sits in the topic clusters and growth territories. */
+function clusterDetails(app, i) {
+  const info = app.state.clusters;
+  if (!info) return null;
+  const p = app.state.points[i];
+  const sims = entrySimilarities(info, i);
+  const top = sims[0].similarity;
+  return el('section', { class: 'detail-clusters', 'aria-label': 'Clusters' },
+    el('h4', { text: 'Topic cluster' }),
+    el('p', { text: p.topic === UNCLUSTERED ? 'Unclustered: not close enough to any group of entries.' : clusterValueLabel(info, 'topic', p.topic) }),
+    el('h4', { text: 'Similarity to the growth territories' }),
+    el('ol', { class: 'similarity-list' }, sims.map((t, rank) => el('li', { class: rank === 0 ? 'closest' : null },
+      el('span', { class: 'similarity-name', text: t.label }),
+      el('span', { class: 'similarity-value', text: t.similarity.toFixed(3) }),
+      el('span', { class: 'similarity-note', text: rank === 0 ? 'closest' : `−${(top - t.similarity).toFixed(3)}` })))),
+    el('p', { class: 'field-hint', text: 'Cosine similarity between this entry’s embedding and each territory’s centroid. The entry belongs to the closest territory.' }));
+}
+
+/** "3 in Topic 1 · 2 in Topic 4" style counts for a selection. */
+function countLine(points, key, label) {
+  const counts = new Map();
+  for (const p of points) counts.set(p[key], (counts.get(p[key]) || 0) + 1);
+  return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([v, c]) => `${c} in ${label(v)}`).join(' · ');
+}
+
 function single(app, i) {
   const p = app.state.points[i];
   const sheet = app.state.plot.sheets.find((s) => s.id === p.sheet);
@@ -87,6 +113,8 @@ function single(app, i) {
     tagEditor(app, { chips: (p.tags || []).map((tag) => ({ tag })), ids: [p.id], label: 'Tags for this entry' }),
     el('section', { class: 'detail-summary', 'aria-label': 'Summary' }, el('h4', { text: 'Summary' }), paragraphs(p.summary)),
   );
+  const clusters = clusterDetails(app, i);
+  if (clusters) body.push(clusters);
   return body;
 }
 
@@ -103,6 +131,10 @@ function multiple(app) {
   return [
     el('h3', { class: 'detail-title', text: `${plural(idx.length, 'entry', 'entries')} selected` }),
     el('p', { class: 'detail-sub', text: [...types.entries()].sort((a, b) => b[1] - a[1]).map(([t, c]) => `${c} ${t}`).join(' · ') }),
+    ...(app.state.clusters ? [
+      el('p', { class: 'detail-sub', text: `Growth territories: ${countLine(points, 'territory', (v) => clusterValueLabel(app.state.clusters, 'territory', v))}` }),
+      el('p', { class: 'detail-sub', text: `Topic clusters: ${countLine(points, 'topic', (v) => (v === UNCLUSTERED ? 'none' : `topic ${clusterValueLabel(app.state.clusters, 'topic', v)}`))}` }),
+    ] : []),
     tagEditor(app, { chips, ids, label: 'Tags for the selected entries' }),
     el('section', { class: 'selected-list' },
       el('h4', { text: 'Entries' }),

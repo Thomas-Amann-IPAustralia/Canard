@@ -1,8 +1,11 @@
 // Filtering by metadata: text in the title or summary, publication date, source type,
-// tags and spreadsheet. Source links are deliberately not filterable.
+// tags, spreadsheet, topic cluster and growth territory. Source links are deliberately
+// not filterable.
 import { $, el, plural } from './ui.js';
+import { UNCLUSTERED, clusterValueLabel } from './cluster-view.js';
 
 export const UNTAGGED = '\u0000untagged';
+const LAST = new Set([UNTAGGED, UNCLUSTERED]);
 
 export const DATE_PRESETS = [
   { key: 'any', label: 'Any time' },
@@ -12,11 +15,11 @@ export const DATE_PRESETS = [
 ];
 
 export function emptyFilters() {
-  return { text: '', scope: 'both', preset: 'any', dateFrom: '', dateTo: '', sourceType: new Set(), tags: new Set(), sheet: new Set(), hide: false };
+  return { text: '', scope: 'both', preset: 'any', dateFrom: '', dateTo: '', sourceType: new Set(), tags: new Set(), sheet: new Set(), topic: new Set(), territory: new Set(), hide: false };
 }
 
 export function isFiltering(f) {
-  return Boolean(f.text.trim() || f.dateFrom || f.dateTo || f.sourceType.size || f.tags.size || f.sheet.size);
+  return Boolean(f.text.trim() || f.dateFrom || f.dateTo || f.sourceType.size || f.tags.size || f.sheet.size || f.topic.size || f.territory.size);
 }
 
 function isoDaysAgo(years) {
@@ -50,6 +53,8 @@ function predicate(f, skip = null) {
     }
     if (skip !== 'sourceType' && f.sourceType.size && !f.sourceType.has(p.sourceType)) return false;
     if (skip !== 'sheet' && f.sheet.size && !f.sheet.has(p.sheet)) return false;
+    if (skip !== 'topic' && f.topic.size && !f.topic.has(p.topic)) return false;
+    if (skip !== 'territory' && f.territory.size && !f.territory.has(p.territory)) return false;
     if (skip !== 'tags' && f.tags.size) {
       const tags = p.tags || [];
       if (!(tags.length ? tags.some((t) => f.tags.has(t)) : f.tags.has(UNTAGGED))) return false;
@@ -77,7 +82,7 @@ export function computeVisible(points, f) {
 }
 
 /** Counts per value for each facet, honouring every other active filter. */
-export function facetCounts(points, f, sheets) {
+export function facetCounts(points, f, sheets, clusterInfo = null) {
   const facet = (key, valuesOf) => {
     const test = predicate(f, key);
     const counts = new Map();
@@ -97,15 +102,25 @@ export function facetCounts(points, f, sheets) {
     sourceType: { live: facet('sourceType', (p) => [p.sourceType]), total: totals((p) => [p.sourceType]) },
     tags: { live: facet('tags', tagValues), total: totals(tagValues) },
     sheet: { live: facet('sheet', (p) => [p.sheet]), total: totals((p) => [p.sheet]), labels: new Map(sheets.map((s) => [s.id, s.filename])) },
+    ...(clusterInfo ? {
+      topic: {
+        live: facet('topic', (p) => [p.topic]), total: totals((p) => [p.topic]),
+        labels: new Map([...clusterInfo.topics.map((t) => [t.key, t.label]), [UNCLUSTERED, clusterValueLabel(clusterInfo, 'topic', UNCLUSTERED)]]),
+      },
+      territory: {
+        live: facet('territory', (p) => [p.territory]), total: totals((p) => [p.territory]),
+        labels: new Map(clusterInfo.territories.map((t) => [t.key, t.label])),
+        order: clusterInfo.territories.map((t) => t.key),
+      },
+    } : {}),
   };
 }
 
 function renderCheckList(container, hint, key, data, f, onChange) {
   const focused = container.contains(document.activeElement) ? document.activeElement.dataset.value : null;
   container.replaceChildren();
-  const values = [...data.total.keys()].sort((a, b) => {
-    if (a === UNTAGGED) return 1;
-    if (b === UNTAGGED) return -1;
+  const values = data.order ? data.order.filter((v) => data.total.has(v)) : [...data.total.keys()].sort((a, b) => {
+    if (LAST.has(a) !== LAST.has(b)) return LAST.has(a) ? 1 : -1;
     return (data.total.get(b) - data.total.get(a)) || String(a).localeCompare(String(b));
   });
   // Keep checked values that no longer exist out of the filter.
@@ -131,11 +146,16 @@ function renderCheckList(container, hint, key, data, f, onChange) {
 }
 
 /** Render every filter control from the current state. */
-export function renderFilters(f, points, sheets, onChange) {
-  const facets = facetCounts(points, f, sheets);
+export function renderFilters(f, points, sheets, onChange, clusterInfo = null) {
+  const facets = facetCounts(points, f, sheets, clusterInfo);
   renderCheckList($('#filter-sourceType'), $('#hint-sourceType'), 'sourceType', facets.sourceType, f, onChange);
   renderCheckList($('#filter-tags'), $('#hint-tags'), 'tags', facets.tags, f, onChange);
   renderCheckList($('#filter-sheet'), $('#hint-sheet'), 'sheet', facets.sheet, f, onChange);
+  for (const key of ['topic', 'territory']) {
+    $(`#group-${key}`).hidden = !facets[key];
+    if (facets[key]) renderCheckList($(`#filter-${key}`), $(`#hint-${key}`), key, facets[key], f, onChange);
+    else f[key].clear();
+  }
   const presets = $('#date-presets');
   presets.replaceChildren(...DATE_PRESETS.map((p) => el('button', {
     type: 'button', role: 'radio', class: 'chip', 'aria-checked': String(f.preset === p.key), text: p.label,

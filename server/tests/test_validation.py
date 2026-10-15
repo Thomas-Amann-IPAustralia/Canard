@@ -2,7 +2,7 @@ import hashlib
 
 import pytest
 
-from app.schema import COLUMNS, EMBEDDING, LIMITS
+from app.schema import CLUSTERS, COLUMNS, EMBEDDING, LIMITS
 from app.tokens import TOKENIZER_PATH, count_tokens
 from app.validation import check_token_limits, validate_csv_text
 
@@ -56,6 +56,9 @@ def test_schema_matches_javascript():
     assert f"dim: {EMBEDDING['dim']}" in js
     for key, value in LIMITS.items():
         assert f"{key}: {value:_}" in js or f"{key}: {value}" in js, key
+    assert f"territories: {CLUSTERS['territories']}," in js
+    territories = (ROOT / "site/js/territories.js").read_text(encoding="utf-8")
+    assert territories.count("    key: '") == CLUSTERS["territories"]
 
 
 def test_token_count_includes_special_tokens():

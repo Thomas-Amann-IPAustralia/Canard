@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "updated": "2026-10-15T02:43:13Z",
+  "updated": "2026-10-15T02:55:09Z",
   "plots": [
-    {"id":"example-landmark-documents-vyfc","name":"Example: landmark documents","description":"Thirty-five example entries (treaties, court decisions, research papers and reports) to show how Canard works. Delete this plot once you have uploaded your own spreadsheets.","created":"2026-10-15T01:04:48Z","updated":"2026-10-15T02:43:13Z","version":2,"points":35,"sheets":1}
+    {"id":"example-landmark-documents-vyfc","name":"Example: landmark documents","description":"Thirty-five example entries (treaties, court decisions, research papers and reports) to show how Canard works. Delete this plot once you have uploaded your own spreadsheets.","created":"2026-10-15T01:04:48Z","updated":"2026-10-15T02:55:09Z","version":3,"points":50,"sheets":2}
   ]
 }

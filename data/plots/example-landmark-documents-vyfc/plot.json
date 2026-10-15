@@ -4,11 +4,12 @@
   "name": "Example: landmark documents",
   "description": "Thirty-five example entries (treaties, court decisions, research papers and reports) to show how Canard works. Delete this plot once you have uploaded your own spreadsheets.",
   "created": "2026-10-15T01:04:48Z",
-  "updated": "2026-10-15T02:43:13Z",
-  "version": 2,
+  "updated": "2026-10-15T02:55:09Z",
+  "version": 3,
   "embedding": {"model":"Xenova/bge-small-en-v1.5","dtype":"fp32","pooling":"cls","normalize":true,"dim":384,"maxTokens":512,"text":"title, a line break, then summary"},
-  "layout": {"computed":"2026-10-15T01:04:48Z","methods":["umap","tsne","gauss","pca"],"params":{"gauss":{"kernel":"rbf","sigma":0.7162},"tsne":{"perplexity":11.33,"iterations":1000,"theta":0.5,"init":"pca"},"umap":{"nNeighbors":15,"minDist":0.1,"init":"pca"},"pca":{}}},
+  "layout": {"computed":"2026-10-15T02:55:09Z","methods":["umap","tsne","gauss","pca"],"params":{"gauss":{"kernel":"rbf","sigma":0.6897},"umap":{"nNeighbors":15,"minDist":0.1,"init":"pca"},"tsne":{"perplexity":16.33,"iterations":1000,"theta":0.5,"init":"pca"},"pca":{}}},
   "sheets": [
-    {"id":"s20261015-6fer","filename":"example.csv","uploaded":"2026-10-15T01:04:48Z","rows":35}
+    {"id":"s20261015-6fer","filename":"example.csv","uploaded":"2026-10-15T01:04:48Z","rows":35},
+    {"id":"s20261015-t2fh","filename":"SemTest.csv","uploaded":"2026-10-15T02:55:09Z","rows":15}
   ]
 }

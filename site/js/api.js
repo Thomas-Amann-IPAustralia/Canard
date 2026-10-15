@@ -74,8 +74,11 @@ export function wake() {
     while (Date.now() - started < 120000) {
       try {
         const res = await fetchWithTimeout(`${API_BASE}/api/health`, { cache: 'no-store' }, 75000);
-        if (res.ok) {
-          health = await res.json();
+        // Only trust a reply that looks like the Canard API, in case the configured
+        // address belongs to some other service.
+        const body = res.ok ? await res.json().catch(() => null) : null;
+        if (body?.ok === true && typeof body.writable === 'boolean' && body.embedding) {
+          health = body;
           clearTimeout(slow);
           setStatus('ready');
           return health;

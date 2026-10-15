@@ -39,6 +39,8 @@ Render's free service sleeps after 15 minutes without traffic and takes up to ab
 
 ## Set-up
 
+For a click-by-click walkthrough, including checks and troubleshooting, see **[Setting up the Render back end](docs/render-setup.md)**. In short:
+
 1. **Merge this branch into `main`.**
 2. **Turn on GitHub Pages.** In the repository go to *Settings > Pages* and set *Source* to **GitHub Actions**. The *Publish site* workflow then deploys the site on every push to `main`.
 3. **Create a GitHub token for the server.** Go to *GitHub > Settings > Developer settings > Fine-grained personal access tokens*, create a token with access to **only** `Thomas-Amann-IPAustralia/Canard` and the repository permission **Contents: Read and write**. Copy it.

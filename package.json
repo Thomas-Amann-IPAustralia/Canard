@@ -1,0 +1,12 @@
+{
+  "name": "canard",
+  "private": true,
+  "type": "module",
+  "description": "Semantic map of curated sources: tests and tooling for the static site.",
+  "scripts": {
+    "test": "node --test \"tests/js/**/*.test.mjs\"",
+    "fixtures": "node scripts/gen-csv-golden.mjs",
+    "serve": "node scripts/dev-server.mjs"
+  },
+  "license": "MIT"
+}

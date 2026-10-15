@@ -1,0 +1,35 @@
+# Render Blueprint for the Canard API (free plan). In Render: New > Blueprint, pick
+# this repository, then fill in the values marked sync: false when prompted.
+services:
+  - type: web
+    name: canard-api
+    runtime: python
+    plan: free
+    rootDir: server
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    autoDeploy: true
+    # Only redeploy for server changes, not for the data commits the API makes.
+    buildFilter:
+      paths:
+        - server/**
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: CANARD_STORE
+        value: github
+      - key: GITHUB_REPO
+        value: Thomas-Amann-IPAustralia/Canard
+      - key: GITHUB_BRANCH
+        value: main
+      - key: CANARD_ALLOWED_ORIGINS
+        value: https://thomas-amann-ipaustralia.github.io
+      - key: CANARD_SESSION_SECRET
+        generateValue: true
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: CANARD_ADMIN_PASSWORD
+        sync: false
+      - key: CANARD_TAG_PASSWORD
+        sync: false

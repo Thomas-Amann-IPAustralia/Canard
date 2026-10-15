@@ -1,0 +1,50 @@
+# Publishes the site and the data folder to GitHub Pages. Runs on every change to
+# main, including the commits the Canard API makes when someone uploads or tags.
+name: Publish site
+
+on:
+  push:
+    branches: [main]
+    paths: ["site/**", "data/**", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Bursts of commits (for example several tag changes) collapse into one deployment.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Assemble the site
+        env:
+          API_URL: ${{ vars.CANARD_API_URL }}
+        run: |
+          mkdir -p _site
+          cp -r site/. _site/
+          cp -r data _site/data
+          touch _site/.nojekyll
+          if [ -n "$API_URL" ]; then
+            node -e 'process.stdout.write("window.CANARD_CONFIG = { apiBase: " + JSON.stringify(process.env.API_URL) + " };\n")' > _site/config.js
+          fi
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,736 @@
+[
+ {
+  "name": "valid basic file",
+  "csv": "Title,Summary,Source link,Publication Date,Source type\nPatent reform,A review of patent law.,https://example.com/a,2024-03-15,Report\nTrade marks,\"Summary with a comma, and \"\"quotes\"\".\",https://example.org/b?x=1,15/03/2024,News\n",
+  "rows": 2,
+  "errors": []
+ },
+ {
+  "name": "valid CRLF, BOM, case-insensitive header, blank rows skipped",
+  "csv": "﻿TITLE , summary,Source Link,publication date,SOURCE TYPE\r\nPatent reform,A review of patent law.,https://example.com/a,2024-03-15,Report\r\n,,,,\r\n\r\nSecond,Two,http://localhost:8000/x,3 April 2024,Blog\r\n",
+  "rows": 2,
+  "errors": []
+ },
+ {
+  "name": "multiline quoted summary keeps row numbering",
+  "csv": "Title,Summary,Source link,Publication Date,Source type\nA,\"Line one\r\nLine two\",https://a.com,2024-01-01,Report\nB,,https://b.com,2024-01-02,Report\n",
+  "rows": 1,
+  "errors": [
+   {
+    "code": "MISSING_VALUE",
+    "row": 3
+   }
+  ]
+ },
+ {
+  "name": "trailing empty columns are ignored",
+  "csv": "Title,Summary,Source link,Publication Date,Source type,,\nPatent reform,A review of patent law.,https://example.com/a,2024-03-15,Report,,\n",
+  "rows": 1,
+  "errors": []
+ },
+ {
+  "name": "empty file",
+  "csv": "",
+  "rows": 0,
+  "errors": [
+   {
+    "code": "EMPTY_FILE",
+    "row": null
+   }
+  ]
+ },
+ {
+  "name": "whitespace only",
+  "csv": " \n\n ",
+  "rows": 0,
+  "errors": [
+   {
+    "code": "EMPTY_FILE",
+    "row": null
+   }
+  ]
+ },
+ {
+  "name": "header only",
+  "csv": "Title,Summary,Source link,Publication Date,Source type\n",
+  "rows": 0,
+  "errors": [
+   {
+    "code": "NO_ROWS",
+    "row": null
+   }
+  ]
+ },
+ {
+  "name": "semicolon delimited",
+  "csv": "Title;Summary;Source link;Publication Date;Source type\nA;B;https://a.com;2024-01-01;X\n",
+  "rows": 0,
+  "errors": [
+   {
+    "code": "WRONG_DELIMITER",
+    "row": 1
+   }
+  ]
+ },
+ {
+  "name": "missing header row",
+  "csv": "Patent reform,A review of patent law.,https://example.com/a,2024-03-15,Report\nPatent reform,A review of patent law.,https://example.com/a,2024-03-15,Report\n",
+  "rows": 0,
+  "errors": [
+   {
+    "code": "HEADER_MISSING",
+    "row": 1
+   }
+  ]
+ },
+ {
+  "name": "wrong column order",
+  "csv": "Summary,Title,Source link,Publication Date,Source type\nPatent reform,A review of patent law.,https://example.com/a,2024-03-15,Report\n",
+  "rows": 0,
+  "errors": [
+   {
+    "code": "HEADER_ORDER",
+    "row": 1
+   }
+  ]
+ },
+ {
+  "name": "too few header columns",
+  "csv": "Title,Summary,Source link,Publication Date\nA,B,https://a.com,2024-01-01\n",
+  "rows": 0,
+  "errors": [
+   {
+    "code": "HEADER_COLUMN_COUNT",
+    "row": 1
+   }
+  ]
+ },
+ {
+  "name": "extra header column",
+  "csv": "Title,Summary,Source link,Publication Date,Source type,Notes\nPatent reform,A review of patent law.,https://example.com/a,2024-03-15,Report,hello\n",
+  "rows": 0,
+  "errors": [
+   {
+    "code": "HEADER_COLUMN_COUNT",
+    "row": 1
+   }
+  ]
+ },
+ {
+  "name": "misnamed headers",
+  "csv": "Title,Abstract,URL,Publication Date,Source type\nPatent reform,A review of patent law.,https://example.com/a,2024-03-15,Report\n",
+  "rows": 0,
+  "errors": [
+   {
+    "code": "HEADER_MISMATCH",
+    "row": 1
+   },
+   {
+    "code": "HEADER_MISMATCH",
+    "row": 1
+   }
+  ]
+ },
+ {
+  "name": "row with too few values",
+  "csv": "Title,Summary,Source link,Publication Date,Source type\nPatent reform,A review of patent law.,https://example.com/a,2024-03-15,Report\nOnly,three,values\n",
+  "rows": 1,
+  "errors": [
+   {
+    "code": "ROW_TOO_FEW_VALUES",
+    "row": 3
+   }
+  ]
+ },
+ {
+  "name": "row with too many values",
+  "csv": "Title,Summary,Source link,Publication Date,Source type\nA,B has, a comma,https://a.com,2024-01-01,Report\n",
+  "rows": 0,
+  "errors": [
+   {
+    "code": "ROW_TOO_MANY_VALUES",
+    "row": 2
+   }
+  ]
+ },
+ {
+  "name": "unclosed quote",
+  "csv": "Title,Summary,Source link,Publication Date,Source type\nPatent reform,A review of patent law.,https://example.com/a,2024-03-15,Report\nA,\"never closed,https://a.com,2024-01-01,Report\nB,c,https://b.com,2024-01-01,Report\n",
+  "rows": 0,
+  "errors": [
+   {
+    "code": "UNCLOSED_QUOTE",
+    "row": 3
+   }
+  ]
+ },
+ {
+  "name": "text after closing quote",
+  "csv": "Title,Summary,Source link,Publication Date,Source type\nA,\"quoted\" tail,https://a.com,2024-01-01,Report\n",
+  "rows": 0,
+  "errors": [
+   {
+    "code": "BAD_QUOTE",
+    "row": 2
+   }
+  ]
+ },
+ {
+  "name": "quote inside unquoted value is literal",
+  "csv": "Title,Summary,Source link,Publication Date,Source type\n5\" screens,He said \"hi\",https://a.com,2024-01-01,Report\n",
+  "rows": 1,
+  "errors": []
+ },
+ {
+  "name": "missing values",
+  "csv": "Title,Summary,Source link,Publication Date,Source type\n,Summary,https://a.com,2024-01-01,Report\nTitle,Summary,,,\n",
+  "rows": 0,
+  "errors": [
+   {
+    "code": "MISSING_VALUE",
+    "row": 2
+   },
+   {
+    "code": "MISSING_VALUE",
+    "row": 3
+   },
+   {
+    "code": "MISSING_VALUE",
+    "row": 3
+   },
+   {
+    "code": "MISSING_VALUE",
+    "row": 3
+   }
+  ]
+ },
+ {
+  "name": "invalid links",
+  "csv": "Title,Summary,Source link,Publication Date,Source type\nA,B,www.example.com,2024-01-01,R\nA,B,ftp://example.com,2024-01-01,R\nA,B,https://exa mple.com,2024-01-01,R\nA,B,https://intranet/page,2024-01-01,R\nA,B,https://example.com/path?q=1#frag,2024-01-01,R\n",
+  "rows": 1,
+  "errors": [
+   {
+    "code": "INVALID_URL",
+    "row": 2
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 3
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 4
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 5
+   }
+  ]
+ },
+ {
+  "name": "date formats",
+  "csv": "Title,Summary,Source link,Publication Date,Source type\nA,B,https://a.com,2024-02-29,R\nB,B,https://a.com,29/02/2024,R\nC,B,https://a.com,1.3.2024,R\nD,B,https://a.com,March 5 2024,R\nE,B,https://a.com,5th Sept 2024,R\nF,B,https://a.com,2024-03-05 00:00:00,R\nG,B,https://a.com,2024/3/5,R\n",
+  "rows": 7,
+  "errors": [],
+  "dates": [
+   "2024-02-29",
+   "2024-02-29",
+   "2024-03-01",
+   "2024-03-05",
+   "2024-09-05",
+   "2024-03-05",
+   "2024-03-05"
+  ]
+ },
+ {
+  "name": "invalid dates",
+  "csv": "Title,Summary,Source link,Publication Date,Source type\nA,B,https://a.com,2023-02-29,R\nB,B,https://a.com,03/25/2024,R\nC,B,https://a.com,5/3/24,R\nD,B,https://a.com,2024,R\nE,B,https://a.com,yesterday,R\nF,B,https://a.com,5 Foo 2024,R\nG,B,https://a.com,31/04/2024,R\n",
+  "rows": 0,
+  "errors": [
+   {
+    "code": "INVALID_DATE",
+    "row": 2
+   },
+   {
+    "code": "INVALID_DATE",
+    "row": 3
+   },
+   {
+    "code": "INVALID_DATE",
+    "row": 4
+   },
+   {
+    "code": "INVALID_DATE",
+    "row": 5
+   },
+   {
+    "code": "INVALID_DATE",
+    "row": 6
+   },
+   {
+    "code": "INVALID_DATE",
+    "row": 7
+   },
+   {
+    "code": "INVALID_DATE",
+    "row": 8
+   }
+  ]
+ },
+ {
+  "name": "source type too long",
+  "csv": "Title,Summary,Source link,Publication Date,Source type\nA,B,https://a.com,2024-01-01,xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n",
+  "rows": 0,
+  "errors": [
+   {
+    "code": "SOURCE_TYPE_TOO_LONG",
+    "row": 2
+   }
+  ]
+ },
+ {
+  "name": "duplicate rows warn but pass",
+  "csv": "Title,Summary,Source link,Publication Date,Source type\nPatent reform,A review of patent law.,https://example.com/a,2024-03-15,Report\nPatent reform,A review of patent law.,https://example.com/a,2024-03-15,Report\n",
+  "rows": 2,
+  "errors": [],
+  "warnings": [
+   "DUPLICATE_ROW"
+  ]
+ },
+ {
+  "name": "whitespace is normalised",
+  "csv": "Title,Summary,Source link,Publication Date,Source type\n  Spaced   title  ,\"  Para one.  \n\n\n\n  Para   two. \",  https://a.com  , 2024-01-01 ,  Journal   article \n",
+  "rows": 1,
+  "errors": [],
+  "first": {
+   "title": "Spaced title",
+   "summary": "Para one.\n\nPara two.",
+   "link": "https://a.com",
+   "date": "2024-01-01",
+   "sourceType": "Journal article"
+  }
+ },
+ {
+  "name": "token limit exceeded",
+  "csv": "Title,Summary,Source link,Publication Date,Source type\nPatent reform,A review of patent law.,https://example.com/a,2024-03-15,Report\nLong one,Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights.,https://a.com,2024-01-01,Report\n",
+  "tokens": true,
+  "rows": 2,
+  "errors": [
+   {
+    "code": "TOKEN_LIMIT",
+    "row": 3
+   }
+  ]
+ },
+ {
+  "name": "many errors are capped",
+  "csv": "Title,Summary,Source link,Publication Date,Source type\nT0,S,notaurl,2024-01-01,R\nT1,S,notaurl,2024-01-01,R\nT2,S,notaurl,2024-01-01,R\nT3,S,notaurl,2024-01-01,R\nT4,S,notaurl,2024-01-01,R\nT5,S,notaurl,2024-01-01,R\nT6,S,notaurl,2024-01-01,R\nT7,S,notaurl,2024-01-01,R\nT8,S,notaurl,2024-01-01,R\nT9,S,notaurl,2024-01-01,R\nT10,S,notaurl,2024-01-01,R\nT11,S,notaurl,2024-01-01,R\nT12,S,notaurl,2024-01-01,R\nT13,S,notaurl,2024-01-01,R\nT14,S,notaurl,2024-01-01,R\nT15,S,notaurl,2024-01-01,R\nT16,S,notaurl,2024-01-01,R\nT17,S,notaurl,2024-01-01,R\nT18,S,notaurl,2024-01-01,R\nT19,S,notaurl,2024-01-01,R\nT20,S,notaurl,2024-01-01,R\nT21,S,notaurl,2024-01-01,R\nT22,S,notaurl,2024-01-01,R\nT23,S,notaurl,2024-01-01,R\nT24,S,notaurl,2024-01-01,R\nT25,S,notaurl,2024-01-01,R\nT26,S,notaurl,2024-01-01,R\nT27,S,notaurl,2024-01-01,R\nT28,S,notaurl,2024-01-01,R\nT29,S,notaurl,2024-01-01,R\nT30,S,notaurl,2024-01-01,R\nT31,S,notaurl,2024-01-01,R\nT32,S,notaurl,2024-01-01,R\nT33,S,notaurl,2024-01-01,R\nT34,S,notaurl,2024-01-01,R\nT35,S,notaurl,2024-01-01,R\nT36,S,notaurl,2024-01-01,R\nT37,S,notaurl,2024-01-01,R\nT38,S,notaurl,2024-01-01,R\nT39,S,notaurl,2024-01-01,R\nT40,S,notaurl,2024-01-01,R\nT41,S,notaurl,2024-01-01,R\nT42,S,notaurl,2024-01-01,R\nT43,S,notaurl,2024-01-01,R\nT44,S,notaurl,2024-01-01,R\nT45,S,notaurl,2024-01-01,R\nT46,S,notaurl,2024-01-01,R\nT47,S,notaurl,2024-01-01,R\nT48,S,notaurl,2024-01-01,R\nT49,S,notaurl,2024-01-01,R\nT50,S,notaurl,2024-01-01,R\nT51,S,notaurl,2024-01-01,R\nT52,S,notaurl,2024-01-01,R\nT53,S,notaurl,2024-01-01,R\nT54,S,notaurl,2024-01-01,R\nT55,S,notaurl,2024-01-01,R\nT56,S,notaurl,2024-01-01,R\nT57,S,notaurl,2024-01-01,R\nT58,S,notaurl,2024-01-01,R\nT59,S,notaurl,2024-01-01,R\nT60,S,notaurl,2024-01-01,R\nT61,S,notaurl,2024-01-01,R\nT62,S,notaurl,2024-01-01,R\nT63,S,notaurl,2024-01-01,R\nT64,S,notaurl,2024-01-01,R\nT65,S,notaurl,2024-01-01,R\nT66,S,notaurl,2024-01-01,R\nT67,S,notaurl,2024-01-01,R\nT68,S,notaurl,2024-01-01,R\nT69,S,notaurl,2024-01-01,R\nT70,S,notaurl,2024-01-01,R\nT71,S,notaurl,2024-01-01,R\nT72,S,notaurl,2024-01-01,R\nT73,S,notaurl,2024-01-01,R\nT74,S,notaurl,2024-01-01,R\nT75,S,notaurl,2024-01-01,R\nT76,S,notaurl,2024-01-01,R\nT77,S,notaurl,2024-01-01,R\nT78,S,notaurl,2024-01-01,R\nT79,S,notaurl,2024-01-01,R\nT80,S,notaurl,2024-01-01,R\nT81,S,notaurl,2024-01-01,R\nT82,S,notaurl,2024-01-01,R\nT83,S,notaurl,2024-01-01,R\nT84,S,notaurl,2024-01-01,R\nT85,S,notaurl,2024-01-01,R\nT86,S,notaurl,2024-01-01,R\nT87,S,notaurl,2024-01-01,R\nT88,S,notaurl,2024-01-01,R\nT89,S,notaurl,2024-01-01,R\nT90,S,notaurl,2024-01-01,R\nT91,S,notaurl,2024-01-01,R\nT92,S,notaurl,2024-01-01,R\nT93,S,notaurl,2024-01-01,R\nT94,S,notaurl,2024-01-01,R\nT95,S,notaurl,2024-01-01,R\nT96,S,notaurl,2024-01-01,R\nT97,S,notaurl,2024-01-01,R\nT98,S,notaurl,2024-01-01,R\nT99,S,notaurl,2024-01-01,R\nT100,S,notaurl,2024-01-01,R\nT101,S,notaurl,2024-01-01,R\nT102,S,notaurl,2024-01-01,R\nT103,S,notaurl,2024-01-01,R\nT104,S,notaurl,2024-01-01,R\n",
+  "rows": 0,
+  "errors": [
+   {
+    "code": "INVALID_URL",
+    "row": 2
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 3
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 4
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 5
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 6
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 7
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 8
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 9
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 10
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 11
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 12
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 13
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 14
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 15
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 16
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 17
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 18
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 19
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 20
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 21
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 22
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 23
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 24
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 25
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 26
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 27
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 28
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 29
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 30
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 31
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 32
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 33
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 34
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 35
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 36
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 37
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 38
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 39
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 40
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 41
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 42
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 43
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 44
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 45
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 46
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 47
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 48
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 49
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 50
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 51
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 52
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 53
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 54
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 55
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 56
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 57
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 58
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 59
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 60
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 61
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 62
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 63
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 64
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 65
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 66
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 67
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 68
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 69
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 70
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 71
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 72
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 73
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 74
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 75
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 76
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 77
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 78
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 79
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 80
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 81
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 82
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 83
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 84
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 85
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 86
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 87
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 88
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 89
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 90
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 91
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 92
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 93
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 94
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 95
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 96
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 97
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 98
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 99
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 100
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 101
+   },
+   {
+    "code": "MORE_ERRORS",
+    "row": null
+   }
+  ]
+ }
+]

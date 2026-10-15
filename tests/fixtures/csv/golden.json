@@ -1,0 +1,1170 @@
+[
+ {
+  "name": "valid basic file",
+  "errors": [],
+  "warnings": [],
+  "rows": [
+   {
+    "row": 2,
+    "title": "Patent reform",
+    "summary": "A review of patent law.",
+    "link": "https://example.com/a",
+    "date": "2024-03-15",
+    "sourceType": "Report"
+   },
+   {
+    "row": 3,
+    "title": "Trade marks",
+    "summary": "Summary with a comma, and \"quotes\".",
+    "link": "https://example.org/b?x=1",
+    "date": "2024-03-15",
+    "sourceType": "News"
+   }
+  ]
+ },
+ {
+  "name": "valid CRLF, BOM, case-insensitive header, blank rows skipped",
+  "errors": [],
+  "warnings": [],
+  "rows": [
+   {
+    "row": 2,
+    "title": "Patent reform",
+    "summary": "A review of patent law.",
+    "link": "https://example.com/a",
+    "date": "2024-03-15",
+    "sourceType": "Report"
+   },
+   {
+    "row": 5,
+    "title": "Second",
+    "summary": "Two",
+    "link": "http://localhost:8000/x",
+    "date": "2024-04-03",
+    "sourceType": "Blog"
+   }
+  ]
+ },
+ {
+  "name": "multiline quoted summary keeps row numbering",
+  "errors": [
+   {
+    "code": "MISSING_VALUE",
+    "row": 3,
+    "column": "Summary",
+    "message": "Row 3: Summary is empty. Every entry needs a value in all five columns."
+   }
+  ],
+  "warnings": [],
+  "rows": [
+   {
+    "row": 2,
+    "title": "A",
+    "summary": "Line one\nLine two",
+    "link": "https://a.com",
+    "date": "2024-01-01",
+    "sourceType": "Report"
+   }
+  ]
+ },
+ {
+  "name": "trailing empty columns are ignored",
+  "errors": [],
+  "warnings": [],
+  "rows": [
+   {
+    "row": 2,
+    "title": "Patent reform",
+    "summary": "A review of patent law.",
+    "link": "https://example.com/a",
+    "date": "2024-03-15",
+    "sourceType": "Report"
+   }
+  ]
+ },
+ {
+  "name": "empty file",
+  "errors": [
+   {
+    "code": "EMPTY_FILE",
+    "row": null,
+    "column": null,
+    "message": "The file is empty."
+   }
+  ],
+  "warnings": [],
+  "rows": []
+ },
+ {
+  "name": "whitespace only",
+  "errors": [
+   {
+    "code": "EMPTY_FILE",
+    "row": null,
+    "column": null,
+    "message": "The file is empty."
+   }
+  ],
+  "warnings": [],
+  "rows": []
+ },
+ {
+  "name": "header only",
+  "errors": [
+   {
+    "code": "NO_ROWS",
+    "row": null,
+    "column": null,
+    "message": "The file has a header row but no entries below it."
+   }
+  ],
+  "warnings": [],
+  "rows": []
+ },
+ {
+  "name": "semicolon delimited",
+  "errors": [
+   {
+    "code": "WRONG_DELIMITER",
+    "row": 1,
+    "column": null,
+    "message": "The columns are separated by semicolons (;) instead of commas. In Excel, choose File > Save As and pick \"CSV UTF-8 (Comma delimited)\"."
+   }
+  ],
+  "warnings": [],
+  "rows": []
+ },
+ {
+  "name": "missing header row",
+  "errors": [
+   {
+    "code": "HEADER_MISSING",
+    "row": 1,
+    "column": null,
+    "message": "Row 1 must contain the column headings: Title, Summary, Source link, Publication Date, Source type. It looks like it contains an entry instead. Download the template to see the expected layout."
+   }
+  ],
+  "warnings": [],
+  "rows": []
+ },
+ {
+  "name": "wrong column order",
+  "errors": [
+   {
+    "code": "HEADER_ORDER",
+    "row": 1,
+    "column": null,
+    "message": "The columns are in the wrong order. They must be: Title, Summary, Source link, Publication Date, Source type."
+   }
+  ],
+  "warnings": [],
+  "rows": []
+ },
+ {
+  "name": "too few header columns",
+  "errors": [
+   {
+    "code": "HEADER_COLUMN_COUNT",
+    "row": 1,
+    "column": null,
+    "message": "The header row has 4 columns but exactly 5 are required: Title, Summary, Source link, Publication Date, Source type. Missing: Source type."
+   }
+  ],
+  "warnings": [],
+  "rows": []
+ },
+ {
+  "name": "extra header column",
+  "errors": [
+   {
+    "code": "HEADER_COLUMN_COUNT",
+    "row": 1,
+    "column": null,
+    "message": "The header row has 6 columns but exactly 5 are required: Title, Summary, Source link, Publication Date, Source type. Not expected: \"Notes\"."
+   }
+  ],
+  "warnings": [],
+  "rows": []
+ },
+ {
+  "name": "misnamed headers",
+  "errors": [
+   {
+    "code": "HEADER_MISMATCH",
+    "row": 1,
+    "column": "Summary",
+    "message": "Column 2 is headed \"Abstract\" but should be \"Summary\"."
+   },
+   {
+    "code": "HEADER_MISMATCH",
+    "row": 1,
+    "column": "Source link",
+    "message": "Column 3 is headed \"URL\" but should be \"Source link\"."
+   }
+  ],
+  "warnings": [],
+  "rows": []
+ },
+ {
+  "name": "row with too few values",
+  "errors": [
+   {
+    "code": "ROW_TOO_FEW_VALUES",
+    "row": 3,
+    "column": null,
+    "message": "Row 3 has 3 values but 5 are expected. Check for a missing comma, or a line break inside a value that is not wrapped in double quotes."
+   }
+  ],
+  "warnings": [],
+  "rows": [
+   {
+    "row": 2,
+    "title": "Patent reform",
+    "summary": "A review of patent law.",
+    "link": "https://example.com/a",
+    "date": "2024-03-15",
+    "sourceType": "Report"
+   }
+  ]
+ },
+ {
+  "name": "row with too many values",
+  "errors": [
+   {
+    "code": "ROW_TOO_MANY_VALUES",
+    "row": 2,
+    "column": null,
+    "message": "Row 2 has 6 values but 5 are expected. If a value contains a comma, wrap the whole value in double quotes."
+   }
+  ],
+  "warnings": [],
+  "rows": []
+ },
+ {
+  "name": "unclosed quote",
+  "errors": [
+   {
+    "code": "UNCLOSED_QUOTE",
+    "row": 3,
+    "column": null,
+    "message": "Row 3: a value starts with a double quote that is never closed. Check for a missing closing quotation mark."
+   }
+  ],
+  "warnings": [],
+  "rows": []
+ },
+ {
+  "name": "text after closing quote",
+  "errors": [
+   {
+    "code": "BAD_QUOTE",
+    "row": 2,
+    "column": null,
+    "message": "Row 2: there is text after a closing double quote. If a value contains double quotes, wrap the whole value in double quotes and double each quote inside it, for example \"He said \"\"hello\"\"\"."
+   }
+  ],
+  "warnings": [],
+  "rows": []
+ },
+ {
+  "name": "quote inside unquoted value is literal",
+  "errors": [],
+  "warnings": [],
+  "rows": [
+   {
+    "row": 2,
+    "title": "5\" screens",
+    "summary": "He said \"hi\"",
+    "link": "https://a.com",
+    "date": "2024-01-01",
+    "sourceType": "Report"
+   }
+  ]
+ },
+ {
+  "name": "missing values",
+  "errors": [
+   {
+    "code": "MISSING_VALUE",
+    "row": 2,
+    "column": "Title",
+    "message": "Row 2: Title is empty. Every entry needs a value in all five columns."
+   },
+   {
+    "code": "MISSING_VALUE",
+    "row": 3,
+    "column": "Source link",
+    "message": "Row 3: Source link is empty. Every entry needs a value in all five columns."
+   },
+   {
+    "code": "MISSING_VALUE",
+    "row": 3,
+    "column": "Publication Date",
+    "message": "Row 3: Publication Date is empty. Every entry needs a value in all five columns."
+   },
+   {
+    "code": "MISSING_VALUE",
+    "row": 3,
+    "column": "Source type",
+    "message": "Row 3: Source type is empty. Every entry needs a value in all five columns."
+   }
+  ],
+  "warnings": [],
+  "rows": []
+ },
+ {
+  "name": "invalid links",
+  "errors": [
+   {
+    "code": "INVALID_URL",
+    "row": 2,
+    "column": "Source link",
+    "message": "Row 2: Source link \"www.example.com\" must start with http:// or https:// (for example https://www.example.com)."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 3,
+    "column": "Source link",
+    "message": "Row 3: Source link \"ftp://example.com\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 4,
+    "column": "Source link",
+    "message": "Row 4: Source link \"https://exa mple.com\" is not a valid web address (it may contain spaces)."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 5,
+    "column": "Source link",
+    "message": "Row 5: Source link \"https://intranet/page\" does not contain a valid domain name."
+   }
+  ],
+  "warnings": [],
+  "rows": [
+   {
+    "row": 6,
+    "title": "A",
+    "summary": "B",
+    "link": "https://example.com/path?q=1#frag",
+    "date": "2024-01-01",
+    "sourceType": "R"
+   }
+  ]
+ },
+ {
+  "name": "date formats",
+  "errors": [],
+  "warnings": [],
+  "rows": [
+   {
+    "row": 2,
+    "title": "A",
+    "summary": "B",
+    "link": "https://a.com",
+    "date": "2024-02-29",
+    "sourceType": "R"
+   },
+   {
+    "row": 3,
+    "title": "B",
+    "summary": "B",
+    "link": "https://a.com",
+    "date": "2024-02-29",
+    "sourceType": "R"
+   },
+   {
+    "row": 4,
+    "title": "C",
+    "summary": "B",
+    "link": "https://a.com",
+    "date": "2024-03-01",
+    "sourceType": "R"
+   },
+   {
+    "row": 5,
+    "title": "D",
+    "summary": "B",
+    "link": "https://a.com",
+    "date": "2024-03-05",
+    "sourceType": "R"
+   },
+   {
+    "row": 6,
+    "title": "E",
+    "summary": "B",
+    "link": "https://a.com",
+    "date": "2024-09-05",
+    "sourceType": "R"
+   },
+   {
+    "row": 7,
+    "title": "F",
+    "summary": "B",
+    "link": "https://a.com",
+    "date": "2024-03-05",
+    "sourceType": "R"
+   },
+   {
+    "row": 8,
+    "title": "G",
+    "summary": "B",
+    "link": "https://a.com",
+    "date": "2024-03-05",
+    "sourceType": "R"
+   }
+  ]
+ },
+ {
+  "name": "invalid dates",
+  "errors": [
+   {
+    "code": "INVALID_DATE",
+    "row": 2,
+    "column": "Publication Date",
+    "message": "Row 2: Publication Date \"2023-02-29\" is not a real calendar date."
+   },
+   {
+    "code": "INVALID_DATE",
+    "row": 3,
+    "column": "Publication Date",
+    "message": "Row 3: Publication Date \"03/25/2024\" looks like a month/day/year date. Dates are read as day/month/year (Australian format); YYYY-MM-DD is safest."
+   },
+   {
+    "code": "INVALID_DATE",
+    "row": 4,
+    "column": "Publication Date",
+    "message": "Row 4: Publication Date \"5/3/24\" has a two-digit year. Use a four-digit year, for example 2024-03-15 or 15/03/2024."
+   },
+   {
+    "code": "INVALID_DATE",
+    "row": 5,
+    "column": "Publication Date",
+    "message": "Row 5: Publication Date \"2024\" needs a full date. If only the year or month is known, use the first day, for example 2024-01-01."
+   },
+   {
+    "code": "INVALID_DATE",
+    "row": 6,
+    "column": "Publication Date",
+    "message": "Row 6: Publication Date \"yesterday\" is not a recognised date. Use YYYY-MM-DD (for example 2024-03-15) or DD/MM/YYYY (for example 15/03/2024)."
+   },
+   {
+    "code": "INVALID_DATE",
+    "row": 7,
+    "column": "Publication Date",
+    "message": "Row 7: Publication Date \"5 Foo 2024\" has an unrecognised month name \"Foo\"."
+   },
+   {
+    "code": "INVALID_DATE",
+    "row": 8,
+    "column": "Publication Date",
+    "message": "Row 8: Publication Date \"31/04/2024\" is not a real calendar date."
+   }
+  ],
+  "warnings": [],
+  "rows": []
+ },
+ {
+  "name": "source type too long",
+  "errors": [
+   {
+    "code": "SOURCE_TYPE_TOO_LONG",
+    "row": 2,
+    "column": "Source type",
+    "message": "Row 2: Source type is 61 characters long. Keep it to a short category of at most 60 characters, such as \"Journal article\" or \"News\"."
+   }
+  ],
+  "warnings": [],
+  "rows": []
+ },
+ {
+  "name": "duplicate rows warn but pass",
+  "errors": [],
+  "warnings": [
+   {
+    "code": "DUPLICATE_ROW",
+    "row": 3,
+    "column": null,
+    "message": "Row 3 repeats row 2 (same title and source link). Both will be added."
+   }
+  ],
+  "rows": [
+   {
+    "row": 2,
+    "title": "Patent reform",
+    "summary": "A review of patent law.",
+    "link": "https://example.com/a",
+    "date": "2024-03-15",
+    "sourceType": "Report"
+   },
+   {
+    "row": 3,
+    "title": "Patent reform",
+    "summary": "A review of patent law.",
+    "link": "https://example.com/a",
+    "date": "2024-03-15",
+    "sourceType": "Report"
+   }
+  ]
+ },
+ {
+  "name": "whitespace is normalised",
+  "errors": [],
+  "warnings": [],
+  "rows": [
+   {
+    "row": 2,
+    "title": "Spaced title",
+    "summary": "Para one.\n\nPara two.",
+    "link": "https://a.com",
+    "date": "2024-01-01",
+    "sourceType": "Journal article"
+   }
+  ]
+ },
+ {
+  "name": "token limit exceeded",
+  "errors": [
+   {
+    "code": "TOKEN_LIMIT",
+    "row": 3,
+    "column": "Summary",
+    "message": "Row 3 (\"Long one\"): the title and summary together are 524 tokens long, but the embedding model accepts at most 512. Shorten this entry by at least 12 tokens (roughly 9 words)."
+   }
+  ],
+  "warnings": [],
+  "rows": [
+   {
+    "row": 2,
+    "title": "Patent reform",
+    "summary": "A review of patent law.",
+    "link": "https://example.com/a",
+    "date": "2024-03-15",
+    "sourceType": "Report",
+    "tokens": 10
+   },
+   {
+    "row": 3,
+    "title": "Long one",
+    "summary": "Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights. Intellectual property rights encourage innovation by granting inventors temporary exclusive rights.",
+    "link": "https://a.com",
+    "date": "2024-01-01",
+    "sourceType": "Report",
+    "tokens": 524
+   }
+  ]
+ },
+ {
+  "name": "many errors are capped",
+  "errors": [
+   {
+    "code": "INVALID_URL",
+    "row": 2,
+    "column": "Source link",
+    "message": "Row 2: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 3,
+    "column": "Source link",
+    "message": "Row 3: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 4,
+    "column": "Source link",
+    "message": "Row 4: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 5,
+    "column": "Source link",
+    "message": "Row 5: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 6,
+    "column": "Source link",
+    "message": "Row 6: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 7,
+    "column": "Source link",
+    "message": "Row 7: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 8,
+    "column": "Source link",
+    "message": "Row 8: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 9,
+    "column": "Source link",
+    "message": "Row 9: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 10,
+    "column": "Source link",
+    "message": "Row 10: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 11,
+    "column": "Source link",
+    "message": "Row 11: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 12,
+    "column": "Source link",
+    "message": "Row 12: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 13,
+    "column": "Source link",
+    "message": "Row 13: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 14,
+    "column": "Source link",
+    "message": "Row 14: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 15,
+    "column": "Source link",
+    "message": "Row 15: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 16,
+    "column": "Source link",
+    "message": "Row 16: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 17,
+    "column": "Source link",
+    "message": "Row 17: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 18,
+    "column": "Source link",
+    "message": "Row 18: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 19,
+    "column": "Source link",
+    "message": "Row 19: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 20,
+    "column": "Source link",
+    "message": "Row 20: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 21,
+    "column": "Source link",
+    "message": "Row 21: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 22,
+    "column": "Source link",
+    "message": "Row 22: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 23,
+    "column": "Source link",
+    "message": "Row 23: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 24,
+    "column": "Source link",
+    "message": "Row 24: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 25,
+    "column": "Source link",
+    "message": "Row 25: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 26,
+    "column": "Source link",
+    "message": "Row 26: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 27,
+    "column": "Source link",
+    "message": "Row 27: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 28,
+    "column": "Source link",
+    "message": "Row 28: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 29,
+    "column": "Source link",
+    "message": "Row 29: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 30,
+    "column": "Source link",
+    "message": "Row 30: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 31,
+    "column": "Source link",
+    "message": "Row 31: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 32,
+    "column": "Source link",
+    "message": "Row 32: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 33,
+    "column": "Source link",
+    "message": "Row 33: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 34,
+    "column": "Source link",
+    "message": "Row 34: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 35,
+    "column": "Source link",
+    "message": "Row 35: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 36,
+    "column": "Source link",
+    "message": "Row 36: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 37,
+    "column": "Source link",
+    "message": "Row 37: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 38,
+    "column": "Source link",
+    "message": "Row 38: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 39,
+    "column": "Source link",
+    "message": "Row 39: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 40,
+    "column": "Source link",
+    "message": "Row 40: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 41,
+    "column": "Source link",
+    "message": "Row 41: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 42,
+    "column": "Source link",
+    "message": "Row 42: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 43,
+    "column": "Source link",
+    "message": "Row 43: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 44,
+    "column": "Source link",
+    "message": "Row 44: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 45,
+    "column": "Source link",
+    "message": "Row 45: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 46,
+    "column": "Source link",
+    "message": "Row 46: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 47,
+    "column": "Source link",
+    "message": "Row 47: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 48,
+    "column": "Source link",
+    "message": "Row 48: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 49,
+    "column": "Source link",
+    "message": "Row 49: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 50,
+    "column": "Source link",
+    "message": "Row 50: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 51,
+    "column": "Source link",
+    "message": "Row 51: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 52,
+    "column": "Source link",
+    "message": "Row 52: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 53,
+    "column": "Source link",
+    "message": "Row 53: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 54,
+    "column": "Source link",
+    "message": "Row 54: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 55,
+    "column": "Source link",
+    "message": "Row 55: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 56,
+    "column": "Source link",
+    "message": "Row 56: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 57,
+    "column": "Source link",
+    "message": "Row 57: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 58,
+    "column": "Source link",
+    "message": "Row 58: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 59,
+    "column": "Source link",
+    "message": "Row 59: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 60,
+    "column": "Source link",
+    "message": "Row 60: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 61,
+    "column": "Source link",
+    "message": "Row 61: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 62,
+    "column": "Source link",
+    "message": "Row 62: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 63,
+    "column": "Source link",
+    "message": "Row 63: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 64,
+    "column": "Source link",
+    "message": "Row 64: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 65,
+    "column": "Source link",
+    "message": "Row 65: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 66,
+    "column": "Source link",
+    "message": "Row 66: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 67,
+    "column": "Source link",
+    "message": "Row 67: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 68,
+    "column": "Source link",
+    "message": "Row 68: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 69,
+    "column": "Source link",
+    "message": "Row 69: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 70,
+    "column": "Source link",
+    "message": "Row 70: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 71,
+    "column": "Source link",
+    "message": "Row 71: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 72,
+    "column": "Source link",
+    "message": "Row 72: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 73,
+    "column": "Source link",
+    "message": "Row 73: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 74,
+    "column": "Source link",
+    "message": "Row 74: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 75,
+    "column": "Source link",
+    "message": "Row 75: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 76,
+    "column": "Source link",
+    "message": "Row 76: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 77,
+    "column": "Source link",
+    "message": "Row 77: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 78,
+    "column": "Source link",
+    "message": "Row 78: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 79,
+    "column": "Source link",
+    "message": "Row 79: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 80,
+    "column": "Source link",
+    "message": "Row 80: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 81,
+    "column": "Source link",
+    "message": "Row 81: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 82,
+    "column": "Source link",
+    "message": "Row 82: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 83,
+    "column": "Source link",
+    "message": "Row 83: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 84,
+    "column": "Source link",
+    "message": "Row 84: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 85,
+    "column": "Source link",
+    "message": "Row 85: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 86,
+    "column": "Source link",
+    "message": "Row 86: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 87,
+    "column": "Source link",
+    "message": "Row 87: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 88,
+    "column": "Source link",
+    "message": "Row 88: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 89,
+    "column": "Source link",
+    "message": "Row 89: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 90,
+    "column": "Source link",
+    "message": "Row 90: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 91,
+    "column": "Source link",
+    "message": "Row 91: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 92,
+    "column": "Source link",
+    "message": "Row 92: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 93,
+    "column": "Source link",
+    "message": "Row 93: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 94,
+    "column": "Source link",
+    "message": "Row 94: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 95,
+    "column": "Source link",
+    "message": "Row 95: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 96,
+    "column": "Source link",
+    "message": "Row 96: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 97,
+    "column": "Source link",
+    "message": "Row 97: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 98,
+    "column": "Source link",
+    "message": "Row 98: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 99,
+    "column": "Source link",
+    "message": "Row 99: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 100,
+    "column": "Source link",
+    "message": "Row 100: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "INVALID_URL",
+    "row": 101,
+    "column": "Source link",
+    "message": "Row 101: Source link \"notaurl\" must be a web address starting with http:// or https://."
+   },
+   {
+    "code": "MORE_ERRORS",
+    "row": null,
+    "column": null,
+    "message": "…and 5 more problems. Fix the ones above and upload again to see the rest."
+   }
+  ],
+  "warnings": [],
+  "rows": []
+ }
+]

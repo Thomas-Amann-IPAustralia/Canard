@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Canard</title>
+  <meta name="description" content="A semantic map of curated sources: upload a spreadsheet of titles and summaries and explore them as a scatter plot.">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/app.css">
+  <script>
+    // Apply the saved theme before first paint to avoid a flash.
+    try { const t = localStorage.getItem('canard.theme'); if (t) document.documentElement.dataset.theme = t; } catch {}
+  </script>
+  <script src="config.js"></script>
+  <script type="module" src="js/main.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#entry-list">Skip to the list of entries</a>
+  <header class="app-header">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><use href="#icon-duck"></use></svg>
+      <div>
+        <h1>Canard</h1>
+        <p class="tagline">Semantic map of curated sources</p>
+      </div>
+    </div>
+    <div class="plot-picker">
+      <label for="plot-select" class="visually-hidden">Plot</label>
+      <select id="plot-select" disabled><option>Loading plots…</option></select>
+    </div>
+    <div class="header-actions">
+      <span id="server-status" class="server-status" hidden role="status"></span>
+      <button id="btn-upload" class="btn btn-primary" type="button">
+        <svg aria-hidden="true"><use href="#icon-upload"></use></svg><span>Upload</span>
+      </button>
+      <button id="btn-manage" class="btn" type="button" disabled>
+        <svg aria-hidden="true"><use href="#icon-sheets"></use></svg><span>Spreadsheets</span>
+      </button>
+      <button id="btn-tagging" class="btn" type="button" aria-pressed="false">
+        <svg aria-hidden="true"><use href="#icon-lock"></use></svg><span>Unlock tagging</span>
+      </button>
+      <details class="menu">
+        <summary class="btn btn-icon" aria-label="More options"><svg aria-hidden="true"><use href="#icon-more"></use></svg></summary>
+        <div class="menu-panel" role="menu">
+          <a role="menuitem" href="template.csv" download="canard-template.csv">Download CSV template</a>
+          <a role="menuitem" href="example.csv" download="canard-example.csv">Download example CSV</a>
+          <button role="menuitem" type="button" id="btn-export" disabled>Download matching entries (CSV)</button>
+          <button role="menuitem" type="button" id="btn-theme">Switch to dark theme</button>
+          <button role="menuitem" type="button" id="btn-help">How this works</button>
+        </div>
+      </details>
+    </div>
+  </header>
+
+  <div id="banner" class="banner" hidden role="status"></div>
+
+  <main class="workspace">
+    <aside id="filters-panel" class="panel filters-panel" aria-label="Filters">
+      <div class="panel-head">
+        <h2>Filters</h2>
+        <button type="button" class="link-btn" id="btn-clear-filters">Clear all</button>
+        <button type="button" class="btn btn-icon panel-close" data-close-panel aria-label="Close filters"><svg aria-hidden="true"><use href="#icon-close"></use></svg></button>
+      </div>
+      <p id="match-count" class="match-count" aria-live="polite"></p>
+      <div class="filter-group">
+        <label for="filter-search" class="filter-label">Search</label>
+        <div class="search-row">
+          <input id="filter-search" type="search" placeholder="Words in titles or summaries" autocomplete="off">
+          <select id="filter-search-scope" aria-label="Search in">
+            <option value="both">Title and summary</option>
+            <option value="title">Title only</option>
+            <option value="summary">Summary only</option>
+          </select>
+        </div>
+      </div>
+      <fieldset class="filter-group">
+        <legend class="filter-label">Publication date</legend>
+        <div class="chip-row" id="date-presets" role="radiogroup" aria-label="Date range presets"></div>
+        <div class="date-range">
+          <label>From <input id="filter-date-from" type="date"></label>
+          <label>To <input id="filter-date-to" type="date"></label>
+        </div>
+      </fieldset>
+      <fieldset class="filter-group">
+        <legend class="filter-label">Source type <span class="filter-hint" id="hint-sourceType"></span></legend>
+        <div class="check-list" id="filter-sourceType"></div>
+      </fieldset>
+      <fieldset class="filter-group">
+        <legend class="filter-label">Tags <span class="filter-hint" id="hint-tags"></span></legend>
+        <div class="check-list" id="filter-tags"></div>
+      </fieldset>
+      <fieldset class="filter-group">
+        <legend class="filter-label">Spreadsheet <span class="filter-hint" id="hint-sheet"></span></legend>
+        <div class="check-list" id="filter-sheet"></div>
+      </fieldset>
+      <label class="toggle">
+        <input type="checkbox" id="filter-hide">
+        <span>Hide entries that do not match (instead of fading them)</span>
+      </label>
+      <section class="entry-list-section" aria-labelledby="entry-list-heading">
+        <h2 id="entry-list-heading">Matching entries</h2>
+        <ol id="entry-list" class="entry-list" tabindex="-1"></ol>
+        <button type="button" class="link-btn" id="btn-more-entries" hidden>Show more</button>
+      </section>
+    </aside>
+
+    <section class="plot-area" aria-label="Scatter plot">
+      <div class="plot-toolbar">
+        <button type="button" class="btn btn-icon only-narrow" id="btn-open-filters" aria-label="Show filters"><svg aria-hidden="true"><use href="#icon-filter"></use></svg></button>
+        <div class="segmented" id="method-switch" role="radiogroup" aria-label="Projection method"></div>
+        <div class="segmented" role="radiogroup" aria-label="Pointer tool">
+          <button type="button" role="radio" aria-checked="true" data-tool="pan" title="Pan, zoom and click points (P)">
+            <svg aria-hidden="true"><use href="#icon-hand"></use></svg><span>Pan</span>
+          </button>
+          <button type="button" role="radio" aria-checked="false" data-tool="lasso" title="Draw around points to select them (L). Hold Shift to add, Alt to remove.">
+            <svg aria-hidden="true"><use href="#icon-lasso"></use></svg><span>Lasso</span>
+          </button>
+        </div>
+        <button type="button" class="btn btn-icon" id="btn-fit" title="Fit all points (0)" aria-label="Fit all points"><svg aria-hidden="true"><use href="#icon-fit"></use></svg></button>
+        <label class="colour-by">Colour by
+          <select id="colour-by">
+            <option value="none">Nothing</option>
+            <option value="sourceType">Source type</option>
+            <option value="tags">Tag</option>
+            <option value="sheet">Spreadsheet</option>
+            <option value="date">Publication date</option>
+          </select>
+        </label>
+      </div>
+      <div class="legend" id="legend" aria-label="Colour key"></div>
+      <div class="canvas-wrap" id="canvas-wrap">
+        <canvas id="scatter" aria-describedby="plot-help"></canvas>
+        <div id="tooltip" class="tooltip" role="tooltip" hidden></div>
+        <div id="selection-bar" class="selection-bar" hidden>
+          <span id="selection-count"></span>
+          <button type="button" class="btn btn-small" id="btn-selection-open">Show details</button>
+          <button type="button" class="btn btn-small" id="btn-selection-clear">Clear selection</button>
+        </div>
+        <div id="empty-state" class="empty-state" hidden></div>
+        <div id="plot-loading" class="plot-loading" hidden><span class="spinner" aria-hidden="true"></span><span>Loading plot…</span></div>
+      </div>
+      <p id="plot-help" class="plot-help">Scroll or pinch to zoom, drag to pan, click a point to read it. Use the lasso (or hold Shift and drag) to select a group.</p>
+    </section>
+
+    <aside id="details-panel" class="panel details-panel" aria-label="Details" hidden>
+      <div class="panel-head">
+        <h2 id="details-heading">Details</h2>
+        <button type="button" class="btn btn-icon" id="btn-close-details" aria-label="Close details"><svg aria-hidden="true"><use href="#icon-close"></use></svg></button>
+      </div>
+      <div id="details-body" class="details-body"></div>
+    </aside>
+  </main>
+
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+
+  <dialog id="dlg-upload" class="dialog dialog-wide" aria-labelledby="dlg-upload-title"></dialog>
+  <dialog id="dlg-manage" class="dialog" aria-labelledby="dlg-manage-title"></dialog>
+  <dialog id="dlg-unlock" class="dialog dialog-narrow" aria-labelledby="dlg-unlock-title"></dialog>
+  <dialog id="dlg-help" class="dialog" aria-labelledby="dlg-help-title"></dialog>
+
+  <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+    <symbol id="icon-duck" viewBox="0 0 32 32"><path fill="currentColor" d="M20.5 5a5.5 5.5 0 0 0-5.4 6.6c-1.7-.4-3.7-.6-5.6-.4C5.7 11.6 3 14.4 3 18.3 3 23.3 7.2 27 13.7 27c6.9 0 12.3-4.2 12.3-10.3 0-1.7-.4-3-1-4.1l3.6-1.4c.7-.3.7-1.3 0-1.6l-2.8-1.2A5.5 5.5 0 0 0 20.5 5Zm.3 3.4a1.3 1.3 0 1 1 0 2.6 1.3 1.3 0 0 1 0-2.6Z"/></symbol>
+    <symbol id="icon-upload" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 15V4m0 0L7.5 8.5M12 4l4.5 4.5M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></symbol>
+    <symbol id="icon-sheets" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M4 5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5Zm0 5h16M4 15h16M10 4v16"/></symbol>
+    <symbol id="icon-lock" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M7 11V8a5 5 0 0 1 10 0v3M6 11h12a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1Z"/></symbol>
+    <symbol id="icon-unlock" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M7 11V8a5 5 0 0 1 9.6-2M6 11h12a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1Z"/></symbol>
+    <symbol id="icon-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.8" fill="currentColor"/><circle cx="12" cy="12" r="1.8" fill="currentColor"/><circle cx="19" cy="12" r="1.8" fill="currentColor"/></symbol>
+    <symbol id="icon-close" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M6 6l12 12M18 6 6 18"/></symbol>
+    <symbol id="icon-filter" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M4 6h16M7 12h10M10 18h4"/></symbol>
+    <symbol id="icon-hand" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 3v9m0-9 3 3m-3-3L9 6m3 15v-9m0 9 3-3m-3 3-3-3M3 12h18M3 12l3-3m-3 3 3 3m15-3-3-3m3 3-3 3"/></symbol>
+    <symbol id="icon-lasso" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-dasharray="3 3" d="M12 4c5 0 8.5 2.5 8.5 5.5S17 15 12 15s-8.5-2.5-8.5-5.5S7 4 12 4Z"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M7 14c-1 2-1 4 1 6"/></symbol>
+    <symbol id="icon-fit" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M4 9V5a1 1 0 0 1 1-1h4m6 0h4a1 1 0 0 1 1 1v4m0 6v4a1 1 0 0 1-1 1h-4m-6 0H5a1 1 0 0 1-1-1v-4"/></symbol>
+    <symbol id="icon-external" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M14 4h6v6m0-6-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></symbol>
+    <symbol id="icon-check" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+    <symbol id="icon-alert" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M12 8v5m0 3.5v.5M10.3 3.9 2.6 17.5A2 2 0 0 0 4.3 20.5h15.4a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></symbol>
+  </svg>
+</body>
+</html>

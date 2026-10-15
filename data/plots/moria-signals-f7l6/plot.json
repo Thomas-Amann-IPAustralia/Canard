@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "id": "moria-signals-f7l6",
+  "name": "Moria Signals",
+  "description": "Signals straight from the mines (pre-Day 5)",
+  "created": "2026-10-15T04:31:24Z",
+  "updated": "2026-10-15T04:31:24Z",
+  "version": 1,
+  "embedding": {"model":"Xenova/bge-small-en-v1.5","dtype":"fp32","pooling":"cls","normalize":true,"dim":384,"maxTokens":512,"text":"title, a line break, then summary"},
+  "layout": {"computed":"2026-10-15T04:31:24Z","methods":["umap","tsne","gauss","pca"],"params":{"gauss":{"kernel":"rbf","sigma":0.5043},"tsne":{"perplexity":7.67,"iterations":1000,"theta":0.5,"init":"pca"},"umap":{"nNeighbors":15,"minDist":0.1,"init":"pca"},"pca":{}}},
+  "sheets": [
+    {"id":"s20261015-j6pz","filename":"moria-signals-2026-10-14.csv","uploaded":"2026-10-15T04:31:24Z","rows":24}
+  ]
+}

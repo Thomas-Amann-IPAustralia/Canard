@@ -1,6 +1,8 @@
 // Computes layouts off the main thread. One worker prepares the neighbours and then
-// runs the Gaussian kernel PCA; two more run t-SNE and UMAP in parallel.
+// runs the Gaussian kernel PCA; three more run t-SNE, UMAP and the topic clustering
+// in parallel.
 import { prepare, runTsne, runUmap, runGauss } from '../projection/index.js';
+import { computeTopics } from '../clustering/index.js';
 
 self.onmessage = (event) => {
   const { task } = event.data;
@@ -27,6 +29,10 @@ self.onmessage = (event) => {
       const { knn, n, nNeighbors, pcaY } = event.data;
       const out = runUmap(knn, n, nNeighbors, pcaY, { progress });
       self.postMessage({ type: 'result', task, Y: out.Y, params: out.params }, [out.Y.buffer]);
+    } else if (task === 'topics') {
+      const { vectors, n, dim, knn } = event.data;
+      const out = computeTopics(vectors, n, dim, knn, { progress });
+      self.postMessage({ type: 'result', task, Y: out.labels, params: out.params }, [out.labels.buffer]);
     }
   } catch (e) {
     self.postMessage({ type: 'error', task, message: e?.message || String(e) });

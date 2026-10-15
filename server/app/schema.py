@@ -31,6 +31,12 @@ LIMITS = {
 
 METHOD_KEYS = ["umap", "tsne", "gauss", "pca"]
 
+# Clustering stored with each plot: a topic cluster per entry (-1 for unclustered) and
+# each entry's similarity to every growth territory (see site/js/territories.js).
+CLUSTERS = {
+    "territories": 5,
+}
+
 
 def embedding_text(title: str, summary: str) -> str:
     return f"{title}\n{summary}"

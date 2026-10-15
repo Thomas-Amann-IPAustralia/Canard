@@ -6,6 +6,7 @@ import { EMBEDDING, LIMITS } from './schema.js';
 import { request, wake, keepAlive, ApiError, apiStatus } from './api.js';
 import { loadModel, embedEntries, stopEmbedding } from './embedder.js';
 import { computeLayoutsInWorkers } from './layout-runner.js';
+import { loadTerritoryCentroids, clusterPayload } from './cluster-data.js';
 import { loadPlot, loadVectors, noteVersion } from './data.js';
 import { $, el, icon, plural, formatBytes, formatDate, problemList, toast } from './ui.js';
 
@@ -14,7 +15,7 @@ const STEPS = [
   { key: 'model', label: 'Loading the embedding model' },
   { key: 'embed', label: 'Embedding the entries' },
   { key: 'existing', label: 'Fetching the plot’s existing entries' },
-  { key: 'layout', label: 'Calculating the t-SNE, UMAP, Gaussian and PCA layouts' },
+  { key: 'layout', label: 'Calculating the layouts, topic clusters and growth territories' },
   { key: 'save', label: 'Saving to the GitHub repository' },
 ];
 
@@ -224,7 +225,11 @@ export function openUpload(app) {
           await loadModel((loaded, total) => setStep('model', 'active', total ? `${formatBytes(loaded)} of ${formatBytes(total)} (only downloaded once)` : ''));
           setStep('model', 'done');
           setStep('embed', 'active', `0 of ${parsed.rows.length}`);
-          return embedEntries(parsed.rows, { onProgress: (done, total) => setStep('embed', 'active', `${done} of ${total}`) });
+          const entryVectors = await embedEntries(parsed.rows, { onProgress: (done, total) => setStep('embed', 'active', `${done} of ${total}`) });
+          // The growth territory centroids are embedded with the same model (a few seconds).
+          setStep('embed', 'active', 'Embedding the growth territories');
+          await loadTerritoryCentroids();
+          return entryVectors;
         })();
         cachedVectors.catch(() => { cachedVectors = null; });
       } else {
@@ -264,7 +269,10 @@ export function openUpload(app) {
         signal,
         onProgress: (f, label) => setStep('layout', 'active', `${label} · ${Math.round(f * 100)}%`),
       });
-      setStep('layout', 'done', `${((performance.now() - started) / 1000).toFixed(1)} s`);
+      const centroids = await loadTerritoryCentroids();
+      const grouping = clusterPayload(all, n, layout.topics, centroids);
+      const found = new Set(layout.topics.labels.filter((l) => l >= 0)).size;
+      setStep('layout', 'done', `${((performance.now() - started) / 1000).toFixed(1)} s · ${plural(found, 'topic cluster')}`);
 
       setStep('save', 'active', 'Committing to GitHub…');
       const round6 = (x) => Math.round(x * 1e6) / 1e6;
@@ -276,6 +284,7 @@ export function openUpload(app) {
         baseIds: base.ids,
         coords: Object.fromEntries(Object.entries(layout.coords).map(([k, v]) => [k, Array.from(v)])),
         layoutParams: layout.params,
+        ...grouping,
         embedding: { model: EMBEDDING.model, dtype: EMBEDDING.dtype, pooling: EMBEDDING.pooling, normalize: EMBEDDING.normalize, dim },
         ...(plotId ? { plotId } : { newPlot: { name: nameInput.value.trim(), description: descInput.value.trim() } }),
       };

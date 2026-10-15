@@ -93,6 +93,14 @@
         <legend class="filter-label">Spreadsheet <span class="filter-hint" id="hint-sheet"></span></legend>
         <div class="check-list" id="filter-sheet"></div>
       </fieldset>
+      <fieldset class="filter-group" id="group-topic" hidden>
+        <legend class="filter-label">Topic cluster <span class="filter-hint" id="hint-topic"></span></legend>
+        <div class="check-list" id="filter-topic"></div>
+      </fieldset>
+      <fieldset class="filter-group" id="group-territory" hidden>
+        <legend class="filter-label">Growth territory <span class="filter-hint" id="hint-territory"></span></legend>
+        <div class="check-list" id="filter-territory"></div>
+      </fieldset>
       <label class="toggle">
         <input type="checkbox" id="filter-hide">
         <span>Hide entries that do not match (instead of fading them)</span>
@@ -124,6 +132,8 @@
             <option value="tags">Tag</option>
             <option value="sheet">Spreadsheet</option>
             <option value="date">Publication date</option>
+            <option value="topic">Topic cluster</option>
+            <option value="territory">Growth territory</option>
           </select>
         </label>
       </div>

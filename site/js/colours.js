@@ -3,6 +3,7 @@
 // up to three values to highlight and folds the rest into a neutral "Other". A value
 // keeps its colour for as long as it stays highlighted.
 import { UNTAGGED } from './filters.js';
+import { UNCLUSTERED } from './cluster-view.js';
 
 export const MAX_HIGHLIGHTS = 3;
 const SEQ_STEPS = 7;
@@ -33,7 +34,7 @@ function valuesOf(point, by) {
 /** The most common values, used as the default highlights. */
 export function defaultHighlights(points, by) {
   const counts = new Map();
-  for (const p of points) for (const v of valuesOf(p, by)) if (v !== UNTAGGED) counts.set(v, (counts.get(v) || 0) + 1);
+  for (const p of points) for (const v of valuesOf(p, by)) if (v !== UNTAGGED && v !== UNCLUSTERED) counts.set(v, (counts.get(v) || 0) + 1);
   return [...counts.entries()].sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0])))
     .slice(0, MAX_HIGHLIGHTS).map(([v]) => v);
 }
@@ -76,7 +77,7 @@ export function colourPoints(points, by, highlights, theme, visible, labelFor = 
     if (visible[i]) counts[slot] += 1;
   });
   const legend = [...highlights].sort((a, b) => a[1] - b[1]).map(([v, slot]) => ({
-    kind: 'value', value: v, label: v === UNTAGGED ? 'Untagged' : labelFor(v), colour: palette[slot], count: counts[slot],
+    kind: 'value', value: v, label: labelFor(v), colour: palette[slot], count: counts[slot],
   }));
   legend.push({ kind: 'other', label: 'Everything else', colour: theme.other, count: counts[0] });
   return { colourIdx, palette, legend };

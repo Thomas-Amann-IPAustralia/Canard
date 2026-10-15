@@ -1,5 +1,5 @@
-// End-to-end check of the whole workflow in a real browser: upload, views, lasso,
-// tagging, reload and deletion. It starts the API (with a local data folder) and the
+// End-to-end check of the whole workflow in a real browser: upload, views, clusters,
+// lasso, tagging, reload, recalculating clusters and deletion. It starts the API (with a local data folder) and the
 // static site itself.
 //
 //   npm install --no-save playwright && npx playwright install chromium
@@ -81,6 +81,18 @@ try {
     assert.equal(await page.locator(`#method-switch [data-method="${m}"]`).getAttribute('aria-checked'), 'true');
   }
 
+  step('topic clusters and the growth territories view');
+  await page.click('#method-switch [data-method="territory"]');
+  assert.equal(await page.locator('#method-switch [data-method="territory"]').getAttribute('aria-checked'), 'true');
+  assert.equal(await page.locator('#colour-by').inputValue(), 'territory');
+  assert.equal(await page.locator('#filter-territory .check').count(), 5);
+  await page.click('#method-switch [data-method="umap"]');
+  await page.selectOption('#colour-by', 'topic');
+  assert.ok(await page.locator('#filter-topic .check').count() >= 1);
+  await page.click('#entry-list li button');
+  await page.waitForSelector('#details-body .similarity-list li:nth-child(5)');
+  await page.click('#btn-close-details');
+
   step('lasso a group of points');
   await page.click('[data-tool="lasso"]');
   const box = await page.locator('#scatter').boundingBox();
@@ -107,8 +119,14 @@ try {
   await page.waitForFunction(() => document.querySelector('#filter-tags')?.textContent.includes('Reviewed'));
   assert.match(await page.locator('#btn-tagging').innerText(), /unlocked/);
 
-  step('delete the spreadsheet');
+  step('recalculate the clusters');
   await page.click('#btn-manage');
+  await page.click('#dlg-manage button:has-text("Recalculate clusters")');
+  await page.fill('#dlg-manage .clusters-zone input', 'admin-pw');
+  await page.click('#dlg-manage .clusters-zone button[type=submit]');
+  await page.waitForSelector('.toast:has-text("Recalculated the clusters")', { timeout: 600000 });
+
+  step('delete the spreadsheet');
   await page.click('#dlg-manage .sheet button:has-text("Delete")');
   await page.fill('#dlg-manage .confirm-form input', 'admin-pw');
   await page.click('#dlg-manage .confirm-form button[type=submit]');

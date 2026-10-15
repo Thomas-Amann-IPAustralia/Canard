@@ -40,6 +40,12 @@ export const METHODS = [
   { key: 'pca', label: 'PCA', blurb: 'Principal component analysis. A linear projection onto the two directions of greatest variation.' },
 ];
 
+// Clustering stored with each plot: a topic cluster per entry (-1 for unclustered) and
+// each entry's similarity to every growth territory (see territories.js).
+export const CLUSTERS = {
+  territories: 5,
+};
+
 /** The text that is embedded for each entry. */
 export function embeddingText(title, summary) {
   return `${title}\n${summary}`;

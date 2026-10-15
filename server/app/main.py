@@ -62,6 +62,14 @@ class UploadBody(BaseModel):
     coords: dict[str, list[float]]
     layoutParams: dict = Field(default_factory=dict)
     embedding: Embedding
+    clusters: dict | None = None
+    clusterParams: dict = Field(default_factory=dict)
+
+class ClustersBody(BaseModel):
+    password: str = Field(max_length=500)
+    baseIds: list[str] = Field(max_length=LIMITS["maxPointsPerPlot"])
+    clusters: dict
+    clusterParams: dict = Field(default_factory=dict)
 
 class TagBody(BaseModel):
     ids: list[str] = Field(min_length=1, max_length=LIMITS["maxPointsPerPlot"])
@@ -176,7 +184,8 @@ def create_app(settings: Settings | None = None, store=None) -> FastAPI:
         filename = re.sub(r"[\x00-\x1f/\\]", "_", body.filename.strip())[:200] or "upload.csv"
         op = ops.upload(rows=result["rows"], vectors=body.vectors, coords=body.coords, base_ids=body.baseIds,
                         filename=filename, csv_text=body.csv, plot_id=body.plotId, new_plot=new_plot,
-                        embedding=emb.model_dump(), layout_params=body.layoutParams)
+                        embedding=emb.model_dump(), layout_params=body.layoutParams,
+                        clusters=body.clusters, cluster_params=body.clusterParams)
         out = await app.state.store.transaction(op)
         out["warnings"] = [w.to_dict() for w in result["warnings"]]
         return out
@@ -185,6 +194,12 @@ def create_app(settings: Settings | None = None, store=None) -> FastAPI:
     async def delete_sheet(plot_id: str, sheet_id: str, body: PasswordBody, request: Request):
         require_password(request, body.password, scope="admin")
         op = ops.delete_sheet(ops.check_plot_id(plot_id), ops.check_sheet_id(sheet_id))
+        return await app.state.store.transaction(op)
+
+    @app.post("/api/plots/{plot_id}/clusters")
+    async def set_clusters(plot_id: str, body: ClustersBody, request: Request):
+        require_password(request, body.password, scope="admin")
+        op = ops.set_clusters(ops.check_plot_id(plot_id), body.baseIds, body.clusters, body.clusterParams)
         return await app.state.store.transaction(op)
 
     @app.post("/api/plots/{plot_id}/delete")

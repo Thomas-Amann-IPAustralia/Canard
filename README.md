@@ -1,6 +1,6 @@
 # Canard
 
-Canard turns a hand-made spreadsheet of sources into a semantic map. Each row's title and summary is converted into a vector by an embedding model, and the vectors are plotted in two dimensions so that entries about similar things sit close together. You can switch between four projections (UMAP, t-SNE, Gaussian kernel PCA and PCA), filter by metadata, select points individually or with a lasso, read each entry in a side panel and tag groups of entries.
+Canard turns a hand-made spreadsheet of sources into a semantic map. Each row's title and summary is converted into a vector by an embedding model, and the vectors are plotted in two dimensions so that entries about similar things sit close together. You can switch between four projections (UMAP, t-SNE, Gaussian kernel PCA and PCA), see entries grouped into automatic topic clusters or into IP Australia's five growth territories, filter by metadata, select points individually or with a lasso, read each entry in a side panel and tag groups of entries.
 
 ![Canard showing the example plot in the t-SNE view, with one entry open in the side panel](docs/screenshot.png)
 
@@ -21,7 +21,7 @@ Canard turns a hand-made spreadsheet of sources into a semantic map. Each row's 
               └──────────── GitHub Actions republishes the site (about a minute) ◄───┘
 ```
 
-- **The heavy work happens in the browser.** Render's free tier has a tenth of a CPU, so the uploader's browser validates the CSV, runs the embedding model ([bge-small-en-v1.5](https://huggingface.co/BAAI/bge-small-en-v1.5) through [transformers.js](https://github.com/huggingface/transformers.js), on the GPU where available) and computes all four layouts in web workers.
+- **The heavy work happens in the browser.** Render's free tier has a tenth of a CPU, so the uploader's browser validates the CSV, runs the embedding model ([bge-small-en-v1.5](https://huggingface.co/BAAI/bge-small-en-v1.5) through [transformers.js](https://github.com/huggingface/transformers.js), on the GPU where available) and computes all four layouts and the topic clusters in web workers.
 - **Nothing comes from third-party servers on the published site.** Many workplace networks block Hugging Face and jsDelivr, so the Pages workflow copies the model, transformers.js and the ONNX Runtime files onto the site (`scripts/fetch-model-assets.mjs`). The browser only falls back to those servers when the copies are missing, for example on the dev server.
 - **The server is small.** It checks passwords, repeats every validation check (including the token limit, with the same tokenizer), and commits the result to `data/` as a single commit through the GitHub API.
 - **Switching views is instant** because all four layouts are calculated at upload time and stored. Switching only animates points between stored positions.
@@ -100,13 +100,32 @@ Choose *Upload*, pick an existing plot or create a new one, choose the file and 
 
 ### Exploring
 
-- **Views:** UMAP, t-SNE, Gaussian kernel PCA and PCA (keys 1 to 4). Distances between t-SNE clusters are not meaningful; UMAP keeps more of the overall shape; the Gaussian kernel and PCA views are smooth, repeatable projections.
+- **Views:** UMAP, t-SNE, Gaussian kernel PCA and PCA (keys 1 to 4), and Territories (key 5). Distances between t-SNE clusters are not meaningful; UMAP keeps more of the overall shape; the Gaussian kernel and PCA views are smooth, repeatable projections. See below for the territories view.
 - **Zoom and pan:** scroll or pinch to zoom, drag to pan, double-click to zoom in, `0` to fit everything.
 - **Read an entry:** click a point (or an item in the *Matching entries* list) to open the side panel with the summary and a link to the original source.
 - **Select a group:** use the lasso (`L`), or hold Shift and drag. Shift adds to the selection and Alt removes from it. Shift-click adds or removes single points.
-- **Filter:** by words in the title or summary, publication date, source type, tag and spreadsheet. Non-matching points fade (or hide, if you prefer).
-- **Colour:** by source type, tag, spreadsheet or publication date. Up to three values are highlighted at a time so the colours stay easy to tell apart; choose which with *Choose colours*.
-- **Export:** *More options > Download matching entries* saves the filtered entries, with their tags, as a CSV.
+- **Filter:** by words in the title or summary, publication date, source type, tag, spreadsheet, topic cluster and growth territory. Non-matching points fade (or hide, if you prefer).
+- **Colour:** by source type, tag, spreadsheet, publication date, topic cluster or growth territory. Up to three values are highlighted at a time so the colours stay easy to tell apart; choose which with *Choose colours*. Topic clusters are also labelled on the plot, and territories by their rings, so the rest stay identifiable in grey.
+- **Export:** *More options > Download matching entries* saves the filtered entries, with their tags, topic cluster and growth territory, as a CSV.
+
+### Topic clusters and growth territories
+
+Every upload also groups the plot's entries in two ways. Both are stored with the plot, so they appear instantly.
+
+**Topic clusters** are found automatically, in the style of [BERTopic](https://maartengr.github.io/BERTopic/):
+
+1. The 384-dimension embeddings from the transformer encoder (the same vectors as the map).
+2. [UMAP](https://umap-learn.readthedocs.io/) reduces them to **five dimensions** (15 neighbours, cosine distance, `min_dist` 0 so clusters pack tightly). Clustering happens here, where far more of the structure survives than in the two dimensions on screen; the map only pictures the result.
+3. [HDBSCAN](https://hdbscan.readthedocs.io/) finds dense groups of any shape and leaves entries that fit no group **unclustered** rather than forcing them into one. The smallest cluster grows slowly with the plot (3 entries for small plots, 12 for 600, at most 25), and clusters are numbered by size.
+4. **c-TF-IDF** (class-based TF-IDF) describes each cluster: the titles and summaries of a cluster are pooled into one document, and a term scores `tf × log(1 + A / f)`, so words that are frequent in that cluster but rare across the others rank highest. Single words and pairs of words are considered, simple plurals are folded together, and words found in more than half of all entries are left out.
+
+Choose *Colour by > Topic cluster* to see them. Each cluster is labelled on the plot with its top keywords, and the *Topic cluster* filter lists them all.
+
+**Growth territories** are an opinionated alternative, like k-means with k = 5 and hand-made centroids. Each of IP Australia's five growth territories (defined in [`site/js/territories.js`](site/js/territories.js)) becomes a centroid: every statement in it (the aim, each "imagine a world where", each recent change, each job to be done and the "why now" statement) is embedded with the same model, statements are averaged within each section, and the sections are combined (recent changes count for half, as they mostly describe IP Australia's own work). Each entry belongs to the territory whose centroid it is most similar to (cosine similarity).
+
+The **Territories** view (key `5`) is the only place the five centroids are drawn: as labelled rings at the corners of a pentagon. Each entry sits among them according to how much more similar it is to each territory than to the others, so entries that clearly belong to one territory sit close to its ring, entries split between two sit between them, and entries equally close to all five sit near the middle. Clicking an entry shows its similarity to every territory.
+
+**Older plots and changed territories.** Plots uploaded before clustering was added, and plots whose territory text has since changed, can be updated with *Spreadsheets > Recalculate clusters* (upload password). This loads the embedding model, recalculates both groupings from the stored vectors and leaves the layouts unchanged. If you edit the territory text, also change `TERRITORIES_VERSION` in the same file so the dialog can tell which plots are out of date. Deleting a spreadsheet keeps the remaining entries' clusters as they were.
 
 ### Tagging
 
@@ -121,13 +140,13 @@ Choose *Unlock tagging* and enter the tagging password once; the session lasts u
 ```
 data/
   index.json                                 list of plots
-  plots/<plot>/plot.json                     name, embedding model, spreadsheets, layout settings
-  plots/<plot>/points.json                   every entry with its tags and coordinates for each view
+  plots/<plot>/plot.json                     name, embedding model, spreadsheets, layout and clustering settings
+  plots/<plot>/points.json                   every entry with its tags, coordinates for each view and clusters
   plots/<plot>/sheets/<sheet>/source.csv     the spreadsheet as uploaded
   plots/<plot>/sheets/<sheet>/vectors.json   the 384-dimension embedding of each entry
 ```
 
-Files are written one entry per line, so commits show readable diffs. Coordinates are scaled to the range −1 to 1.
+Files are written one entry per line, so commits show readable diffs. Coordinates are scaled to the range −1 to 1. In `points.json`, `clusters.topic` holds each entry's topic cluster (−1 for unclustered) and `clusters.territory` its similarity to each of the five growth territories, five numbers per entry in territory order. The territories view and the keywords are worked out from these when a plot is shown.
 
 ## Development
 
@@ -161,7 +180,10 @@ node tests/e2e/upload-flow.mjs
 | --- | --- |
 | `site/js/csv.js`, `server/app/validation.py` | CSV parsing and validation. The two are kept identical by the shared cases in `tests/fixtures/csv` (regenerate the expected output with `npm run fixtures`). |
 | `site/js/projection/` | t-SNE (Barnes-Hut), UMAP, Gaussian kernel PCA and PCA, written for typed arrays. Their quality was checked against scikit-learn and umap-learn on the digits data set (trustworthiness within 0.001 of the reference libraries). |
-| `site/js/layout-runner.js` | Runs the layouts in three web workers at once |
+| `site/js/clustering/` | Topic clustering: HDBSCAN (checked against scikit-learn in `tests/fixtures/hdbscan`), the UMAP-to-HDBSCAN pipeline, and c-TF-IDF keywords. UMAP itself (in `projection/umap.js`) handles any number of output dimensions. |
+| `site/js/territories.js` | The five growth territories, how their centroids are built, and the territories layout |
+| `site/js/cluster-data.js`, `site/js/cluster-view.js` | Working out the stored clusters (upload and recalculation) and turning them into labels, filters and the territories view |
+| `site/js/layout-runner.js` | Runs the layouts and the clustering in four web workers at once |
 | `site/js/embedder.js` | Runs the embedding model in web workers |
 | `site/js/scatter.js` | Canvas scatter plot: zoom, pan, hover, lasso and animated transitions |
 | `server/app/` | FastAPI service: passwords, sessions, validation and commits through the GitHub Git Data API |

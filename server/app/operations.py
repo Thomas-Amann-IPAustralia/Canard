@@ -9,7 +9,7 @@ import re
 
 from . import documents as docs
 from .errors import ApiError
-from .schema import EMBEDDING, LIMITS, METHOD_KEYS
+from .schema import CLUSTERS, EMBEDDING, LIMITS, METHOD_KEYS
 from .store import Change, Reader
 
 _PLOT_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,60}\Z")
@@ -90,8 +90,39 @@ def validate_coords(coords: dict[str, list[float]], count: int) -> dict[str, lis
     return out
 
 
+def validate_clusters(clusters: dict | None, count: int) -> dict | None:
+    """Check the clustering sent with an upload or a recalculation. None means none was sent."""
+    if clusters is None:
+        return None
+    k = CLUSTERS["territories"]
+    topic = clusters.get("topic")
+    territory = clusters.get("territory")
+    if not isinstance(topic, list) or len(topic) != count:
+        raise ApiError(400, "BAD_CLUSTERS", f"Expected a topic cluster for each of the {count} entries.")
+    if not all(isinstance(t, int) and not isinstance(t, bool) and -1 <= t < count for t in topic):
+        raise ApiError(400, "BAD_CLUSTERS", "Topic clusters must be whole numbers from -1 (unclustered) upwards.")
+    if not isinstance(territory, list) or len(territory) != k * count:
+        raise ApiError(400, "BAD_CLUSTERS", f"Expected {k} growth territory similarities for each of the {count} entries.")
+    if not all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) and abs(v) <= 1.0001
+               for v in territory):
+        raise ApiError(400, "BAD_CLUSTERS", "Growth territory similarities must be numbers between -1 and 1.")
+    return {"topic": topic, "territory": _round(territory, 4)}
+
+
+def _with_clusters(points: dict, clusters: dict | None) -> dict:
+    out = {k: v for k, v in points.items() if k != "clusters"}
+    if clusters is not None:
+        out["clusters"] = clusters
+    return out
+
+
+def _cluster_info(now: str, params: dict) -> dict:
+    return {"computed": now, "params": params}
+
+
 def upload(*, rows: list[dict], vectors: list[list[float]], coords: dict, base_ids: list[str], filename: str,
-           csv_text: str, plot_id: str | None, new_plot: dict | None, embedding: dict, layout_params: dict):
+           csv_text: str, plot_id: str | None, new_plot: dict | None, embedding: dict, layout_params: dict,
+           clusters: dict | None = None, cluster_params: dict | None = None):
     async def op(reader: Reader):
         index = await _load_index(reader)
         now = docs.now_iso()
@@ -127,6 +158,7 @@ def upload(*, rows: list[dict], vectors: list[list[float]], coords: dict, base_i
                            f"This upload would give the plot {total} entries; the maximum is "
                            f"{LIMITS['maxPointsPerPlot']}. Create a new plot for these entries instead.")
         layout = validate_coords(coords, total)
+        grouping = validate_clusters(clusters, total)
 
         # Reuse the existing spelling of a source type that differs only in case.
         spelling = {}
@@ -147,8 +179,14 @@ def upload(*, rows: list[dict], vectors: list[list[float]], coords: dict, base_i
         plot = {**plot, "updated": now, "version": plot["version"] + 1,
                 "layout": {"computed": now, "methods": METHOD_KEYS, "params": layout_params},
                 "sheets": plot["sheets"] + [{"id": sid, "filename": filename, "uploaded": now, "rows": len(rows)}]}
-        points = {**points, "version": plot["version"], "methods": METHOD_KEYS,
-                  "points": points["points"] + new_points, "coords": layout}
+        # Clusters cover the whole plot, so an upload without them (from an older page)
+        # drops the old ones rather than leaving the new entries out.
+        if grouping is None:
+            plot.pop("clustering", None)
+        else:
+            plot["clustering"] = _cluster_info(now, cluster_params or {})
+        points = _with_clusters({**points, "version": plot["version"], "methods": METHOD_KEYS,
+                                 "points": points["points"] + new_points, "coords": layout}, grouping)
         vectors_doc = {"schema": docs.SCHEMA, "sheet": sid, "model": EMBEDDING["model"], "dim": EMBEDDING["dim"],
                        "ids": [p["id"] for p in new_points], "vectors": [_round(v, 6) for v in vectors]}
         index = _upsert_index(index, plot, len(points["points"]))
@@ -175,10 +213,17 @@ def delete_sheet(plot_id: str, sheet_id: str):
             raise ApiError(404, "SHEET_NOT_FOUND", "That spreadsheet is no longer in this plot.")
         keep = [i for i, p in enumerate(points["points"]) if p["sheet"] != sheet_id]
         coords = {k: [v for i in keep for v in points["coords"][k][2 * i: 2 * i + 2]] for k in METHOD_KEYS}
+        # The remaining entries keep their clusters and similarities too.
+        grouping = points.get("clusters")
+        if grouping is not None:
+            k = CLUSTERS["territories"]
+            grouping = {"topic": [grouping["topic"][i] for i in keep],
+                        "territory": [v for i in keep for v in grouping["territory"][k * i: k * i + k]]}
         now = docs.now_iso()
         plot = {**plot, "updated": now, "version": plot["version"] + 1,
                 "sheets": [s for s in plot["sheets"] if s["id"] != sheet_id]}
-        points = {**points, "version": plot["version"], "points": [points["points"][i] for i in keep], "coords": coords}
+        points = _with_clusters({**points, "version": plot["version"], "points": [points["points"][i] for i in keep],
+                                 "coords": coords}, grouping)
         index = _upsert_index(index, plot, len(points["points"]))
         files: dict[str, bytes | None] = {path: None for path in await reader.list(docs.sheet_dir(plot_id, sheet_id))}
         files.update({
@@ -188,6 +233,28 @@ def delete_sheet(plot_id: str, sheet_id: str):
         })
         message = f"Remove {sheet['filename']} ({sheet['rows']} entries) from plot \"{plot['name']}\""
         return Change(files, message), {"plot": plot, "points": points, "index": index}
+
+    return op
+
+
+def set_clusters(plot_id: str, base_ids: list[str], clusters: dict, cluster_params: dict):
+    """Replace a plot's clusters (after the territories change, or for a plot uploaded before clustering)."""
+    async def op(reader: Reader):
+        plot, points = await _load_plot(reader, plot_id)
+        if [p["id"] for p in points["points"]] != base_ids:
+            raise ApiError(409, "PLOT_CHANGED", "This plot changed while its clusters were being calculated "
+                                                "(someone added or removed entries). Please try again.")
+        grouping = validate_clusters(clusters, len(base_ids))
+        now = docs.now_iso()
+        plot = {**plot, "updated": now, "version": plot["version"] + 1, "clustering": _cluster_info(now, cluster_params)}
+        points = _with_clusters({**points, "version": plot["version"]}, grouping)
+        index = _upsert_index(await _load_index(reader), plot, len(points["points"]))
+        files = {
+            "index.json": docs.dump_index(index),
+            docs.plot_path(plot_id, "plot.json"): docs.dump_plot(plot),
+            docs.plot_path(plot_id, "points.json"): docs.dump_points(points),
+        }
+        return Change(files, f"Recalculate clusters for plot \"{plot['name']}\""), {"plot": plot, "points": points, "index": index}
 
     return op
 

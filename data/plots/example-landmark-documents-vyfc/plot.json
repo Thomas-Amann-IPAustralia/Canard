@@ -4,8 +4,8 @@
   "name": "Example: landmark documents",
   "description": "Thirty-five example entries (treaties, court decisions, research papers and reports) to show how Canard works. Delete this plot once you have uploaded your own spreadsheets.",
   "created": "2026-10-15T01:04:48Z",
-  "updated": "2026-10-15T01:04:48Z",
-  "version": 1,
+  "updated": "2026-10-15T02:43:13Z",
+  "version": 2,
   "embedding": {"model":"Xenova/bge-small-en-v1.5","dtype":"fp32","pooling":"cls","normalize":true,"dim":384,"maxTokens":512,"text":"title, a line break, then summary"},
   "layout": {"computed":"2026-10-15T01:04:48Z","methods":["umap","tsne","gauss","pca"],"params":{"gauss":{"kernel":"rbf","sigma":0.7162},"tsne":{"perplexity":11.33,"iterations":1000,"theta":0.5,"init":"pca"},"umap":{"nNeighbors":15,"minDist":0.1,"init":"pca"},"pca":{}}},
   "sheets": [

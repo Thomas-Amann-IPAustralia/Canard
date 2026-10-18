@@ -5,7 +5,7 @@ Canard turns a hand-made spreadsheet of sources into a semantic map. Each row's 
 ![Canard showing the example plot in the t-SNE view, with one entry open in the side panel](docs/screenshot.png)
 
 - **Site:** https://thomas-amann-ipaustralia.github.io/Canard/ (after the set-up below)
-- **Viewing** needs no password. **Uploading or deleting** a spreadsheet needs the upload password every time. **Tagging** needs the tagging password once per browser session.
+- **Viewing** needs no password. **Uploading or deleting** a spreadsheet or document needs the upload password every time. **Tagging** needs the tagging password once per browser session.
 - Everything is stored in this repository's `data/` folder. Because the repository is public, **anything you upload (titles, summaries, links and tags) is public too.**
 
 ## How it works
@@ -22,7 +22,7 @@ Canard turns a hand-made spreadsheet of sources into a semantic map. Each row's 
 ```
 
 - **The heavy work happens in the browser.** Render's free tier has a tenth of a CPU, so the uploader's browser validates the CSV, runs the embedding model ([bge-small-en-v1.5](https://huggingface.co/BAAI/bge-small-en-v1.5) through [transformers.js](https://github.com/huggingface/transformers.js), on the GPU where available) and computes all four layouts and the topic clusters in web workers.
-- **Nothing comes from third-party servers on the published site.** Many workplace networks block Hugging Face and jsDelivr, so the Pages workflow copies the model, transformers.js and the ONNX Runtime files onto the site (`scripts/fetch-model-assets.mjs`). The browser only falls back to those servers when the copies are missing, for example on the dev server.
+- **Nothing comes from third-party servers on the published site.** Many workplace networks block Hugging Face and jsDelivr, so the Pages workflow copies the model, transformers.js, the ONNX Runtime files and the pdf.js PDF reader onto the site (`scripts/fetch-model-assets.mjs`). The browser only falls back to those servers when the copies are missing, for example on the dev server.
 - **The server is small.** It checks passwords, repeats every validation check (including the token limit, with the same tokenizer), and commits the result to `data/` as a single commit through the GitHub API.
 - **Switching views is instant** because all four layouts are calculated at upload time and stored. Switching only animates points between stored positions.
 - **New uploads keep the map's orientation.** Each new layout is rotated to line up with the previous one, so existing clusters stay roughly where they were.
@@ -69,6 +69,10 @@ The repository includes an example plot (*Example: landmark documents*) so there
 | `CANARD_DATA_DIR` | Folder in the repository that holds the data | `data` |
 | `CANARD_ALLOWED_ORIGINS` | Comma-separated sites allowed to call the API | the GitHub Pages site and localhost |
 | `CANARD_STORE` | `github`, or `local` to write to a folder (development) | `github` when a token is set |
+| `CANARD_LLM_API_KEY` | Turns on the optional *Refine the chunks with AI* step for document uploads | none (off) |
+| `CANARD_LLM_PROVIDER` | `gemini` (Google's API) or `openai` (any OpenAI-compatible `/chat/completions` service) | `gemini` |
+| `CANARD_LLM_MODEL` | Model name | `gemini-flash-latest`, or `gpt-5-mini` for `openai` |
+| `CANARD_LLM_BASE_URL` | API address, for example a self-hosted OpenAI-compatible server | the provider's public API |
 
 Ten wrong passwords from one address within 15 minutes lock that address out for the rest of the window, and 100 wrong passwords in total lock all password checks for 15 minutes.
 
@@ -82,7 +86,7 @@ Download the template from the *Upload* dialog or the *More options* menu. The C
 | --- | --- |
 | Title | Required |
 | Summary | Required. Line breaks are fine (Excel handles the quoting). |
-| Source link | Required. A full web address starting with `http://` or `https://`. |
+| Source link | Optional. If given, a full web address starting with `http://` or `https://`. |
 | Publication Date | Required. `YYYY-MM-DD` is safest. `DD/MM/YYYY` (Australian order), `5 March 2024` and `March 5, 2024` also work. If only the year or month is known, use the first day. |
 | Source type | Required. A short category such as *Journal article* or *News* (60 characters at most). Capitalisation is matched to entries already in the plot. |
 
@@ -93,6 +97,21 @@ Files that break a rule are rejected before anything is uploaded, with a list of
 > **Row 7** ("Patent reform in…"): the title and summary together are 634 tokens long, but the embedding model accepts at most 512. Shorten this entry by at least 122 tokens (roughly 92 words).
 
 At most 2,000 entries can be uploaded at once, and a plot can hold up to 5,000 entries.
+
+### Uploading documents
+
+Instead of a spreadsheet you can choose one or more documents: **PDF**, **Word (.docx)**, **Markdown (.md)** or **plain text (.txt)**, up to 20 at a time and 25 MB each. Each document is split into passages ("chunks") and every chunk becomes an entry. Before uploading, each document gets a card where you check its title (it starts every chunk's title), publication date (read from the file where possible), source type and an optional source link, and can preview its chunks.
+
+How the chunking works, all in the browser:
+
+1. The text is extracted with its structure: headings (Markdown `#` headings, Word heading styles, or larger type in a PDF), paragraphs, lists and tables. Running headers, footers and page numbers are dropped from PDFs, and words hyphenated across lines are re-joined. Scanned PDFs without selectable text are not supported.
+2. Paragraphs longer than about 150 tokens are split at sentence boundaries, and every paragraph is embedded with the same model as the plot.
+3. Consecutive paragraphs are grouped into chunks of up to about 360 tokens (aiming for about 250). A new chunk starts at each section heading and wherever the meaning shifts most from one paragraph to the next (the biggest 15% of distances between neighbouring paragraphs' embeddings). Fragments that are too short to stand alone are merged into the neighbour they are closest to.
+4. Each chunk becomes a row (title: *document title — section heading*; summary: the chunk's text) and is embedded and mapped like a spreadsheet row.
+
+If the server has `CANARD_LLM_API_KEY` set, the dialog also offers **Refine the chunks with AI**. The paragraphs and the suggested breaks are sent to the language model, which chooses where each chunk starts and ends and writes a short title for it. It never rewrites the text, so every summary is still the document's own words. Chunks that come back too long are split again automatically, and if the AI fails for part of a document that part keeps the automatic chunks.
+
+The original document is not stored: the repository keeps the chunks (as a `source.csv`, which *Spreadsheets* lets you download) and their vectors. **Chunk text is committed to the public repository**, just like spreadsheet summaries.
 
 ### Uploading
 
@@ -133,7 +152,7 @@ Choose *Unlock tagging* and enter the tagging password once; the session lasts u
 
 ### Deleting
 
-*Spreadsheets* lists the spreadsheets in the current plot, lets you download each original file, and deletes a spreadsheet (with its entries and tags) or the whole plot with the upload password. The remaining points keep their positions. Deleted data stays in the repository's git history.
+*Spreadsheets* lists the spreadsheets and documents in the current plot, lets you download each original spreadsheet (or a document's chunks), and deletes a spreadsheet or document (with its entries and tags) or the whole plot with the upload password. The remaining points keep their positions. Deleted data stays in the repository's git history.
 
 ## Data layout
 
@@ -142,7 +161,7 @@ data/
   index.json                                 list of plots
   plots/<plot>/plot.json                     name, embedding model, spreadsheets, layout and clustering settings
   plots/<plot>/points.json                   every entry with its tags, coordinates for each view and clusters
-  plots/<plot>/sheets/<sheet>/source.csv     the spreadsheet as uploaded
+  plots/<plot>/sheets/<sheet>/source.csv     the spreadsheet as uploaded, or a document's chunks
   plots/<plot>/sheets/<sheet>/vectors.json   the 384-dimension embedding of each entry
 ```
 
@@ -167,7 +186,7 @@ CANARD_API_URL=http://localhost:8787 node scripts/dev-server.mjs 8000
 node scripts/fetch-model-assets.mjs
 ```
 
-An end-to-end test drives the whole workflow in Chromium (upload, views, lasso, tagging, reload and deletion):
+An end-to-end test drives the whole workflow in Chromium (upload, views, lasso, tagging, reload, deletion and document uploads; set `CANARD_LLM_API_KEY` to include the AI refinement):
 
 ```bash
 npm install --no-save playwright && npx playwright install chromium
@@ -185,6 +204,8 @@ node tests/e2e/upload-flow.mjs
 | `site/js/cluster-data.js`, `site/js/cluster-view.js` | Working out the stored clusters (upload and recalculation) and turning them into labels, filters and the territories view |
 | `site/js/layout-runner.js` | Runs the layouts and the clustering in four web workers at once |
 | `site/js/embedder.js` | Runs the embedding model in web workers |
+| `site/js/documents/` | Document uploads: text extraction (`text.js`, `docx.js` with a built-in ZIP reader, `pdf.js` around Mozilla's pdf.js), semantic chunking (`chunker.js`) and the upload pipeline (`index.js`) |
+| `server/app/llm.py` | The optional AI chunk refinement (Gemini or OpenAI-compatible) |
 | `site/js/scatter.js` | Canvas scatter plot: zoom, pan, hover, lasso and animated transitions |
 | `server/app/` | FastAPI service: passwords, sessions, validation and commits through the GitHub Git Data API |
 

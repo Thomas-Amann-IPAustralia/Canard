@@ -112,8 +112,9 @@ def run(coro):
 def upload_op(n=3, base_ids=(), plot_id=None):
     from app.validation import validate_csv_text
     rows = validate_csv_text(make_csv(n))["rows"]
-    return ops.upload(rows=rows, vectors=[unit_vector(i) for i in range(n)], coords=layout(len(base_ids) + n),
-                      base_ids=list(base_ids), filename="a.csv", csv_text=make_csv(n), plot_id=plot_id,
+    sheet = {"rows": rows, "vectors": [unit_vector(i) for i in range(n)], "filename": "a.csv",
+             "csv_text": make_csv(n), "kind": "spreadsheet"}
+    return ops.upload(sheets=[sheet], coords=layout(len(base_ids) + n), base_ids=list(base_ids), plot_id=plot_id,
                       new_plot=None if plot_id else {"name": "My plot"}, embedding={}, layout_params={})
 
 

@@ -27,6 +27,12 @@ LIMITS = {
     "maxTagsPerPoint": 30,
     "maxPlotNameLength": 80,
     "maxPlotDescriptionLength": 500,
+    # Documents are split into chunks in the browser; only the chunks reach the server.
+    "maxFilesPerUpload": 20,
+    "maxDocumentBytes": 25_000_000,
+    # One request to the optional AI chunk refinement.
+    "maxRefineUnits": 300,
+    "maxRefineChars": 40_000,
 }
 
 METHOD_KEYS = ["umap", "tsne", "gauss", "pca"]

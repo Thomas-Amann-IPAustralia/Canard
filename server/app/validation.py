@@ -16,6 +16,8 @@ from .schema import COLUMNS, EMBEDDING, LIMITS, embedding_text
 
 EXPECTED_HEADERS = [c["header"] for c in COLUMNS]
 EXPECTED_LIST = ", ".join(EXPECTED_HEADERS)
+LINK_INDEX = next(i for i, c in enumerate(COLUMNS) if c["key"] == "link")
+REQUIRED_LIST = "Title, Summary, Publication Date and Source type"
 
 # JavaScript's \s character class.
 WS = "\t\n\v\f\r    -     　﻿"
@@ -321,11 +323,12 @@ def validate_csv_text(text: str) -> dict:
         raw_date = js_trim(fields[3])
         values = [entry["title"], entry["summary"], entry["link"], raw_date, entry["sourceType"]]
         for i, v in enumerate(values):
-            if v == "":
+            # The source link is optional (document chunks often have none).
+            if v == "" and i != LINK_INDEX:
                 row_ok = False
                 errors.append(CsvProblem(
                     "MISSING_VALUE",
-                    f"Row {row}: {EXPECTED_HEADERS[i]} is empty. Every entry needs a value in all five columns.",
+                    f"Row {row}: {EXPECTED_HEADERS[i]} is empty. Every entry needs a {REQUIRED_LIST}.",
                     row, EXPECTED_HEADERS[i]))
         if entry["link"]:
             reason = check_url(entry["link"])

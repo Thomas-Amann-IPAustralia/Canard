@@ -157,7 +157,7 @@ svg { width: 18px; height: 18px; flex: none; }
   text-decoration: underline; text-underline-offset: 2px; font-size: 13px;
 }
 
-input[type="text"], input[type="search"], input[type="password"], input[type="date"], select, textarea {
+input[type="text"], input[type="search"], input[type="password"], input[type="date"], input[type="url"], select, textarea {
   min-height: 36px; padding: 6px 10px; width: 100%;
   border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
 }
@@ -409,6 +409,23 @@ button.legend-item:hover { border-color: var(--ink-2); }
 .preview th, .preview td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--hairline); vertical-align: top; }
 .preview td:nth-child(2) { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .password-row { display: grid; gap: 4px; max-width: 360px; }
+
+/* Documents in the upload dialog: one card per file with its details and chunk preview. */
+.doc-list { display: grid; gap: 8px; }
+.doc-list:empty { display: none; }
+.doc-card { display: grid; gap: 10px; padding: 10px 12px; border: 1px solid var(--hairline); border-radius: var(--radius); background: var(--surface); }
+.doc-card[data-status="error"] { border-color: var(--danger); }
+.doc-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.doc-status { font-size: 13px; }
+.doc-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px 12px; }
+.doc-field { display: grid; gap: 4px; align-content: start; }
+.doc-field:first-child { grid-column: 1 / -1; }
+.field-error { color: var(--danger); font-size: 12px; font-weight: 600; }
+.chunk-details summary { cursor: pointer; font-size: 13px; color: var(--ink-2); }
+.chunk-preview { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 8px; font-size: 12px; max-height: 280px; overflow-y: auto; }
+.chunk-preview p { color: var(--ink-2); white-space: pre-line; overflow-wrap: anywhere; }
+.refine-row { display: grid; gap: 4px; }
+.checkbox-row { display: flex; align-items: center; gap: 8px; }
 
 .steps { list-style: none; margin: 0; padding: 10px 12px; display: grid; gap: 6px; border: 1px solid var(--hairline); border-radius: var(--radius); font-size: 13px; }
 .steps li { display: grid; grid-template-columns: 18px 1fr; column-gap: 8px; align-items: center; color: var(--muted); }

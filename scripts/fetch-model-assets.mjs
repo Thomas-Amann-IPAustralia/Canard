@@ -8,6 +8,7 @@
 // Defaults: site/ and .asset-cache/. Writes:
 //   vendor/transformers/transformers.min.js
 //   vendor/onnxruntime-web/ort-wasm-simd-threaded{,.asyncify}.{mjs,wasm}
+//   vendor/pdfjs/pdf.min.mjs, pdf.worker.min.mjs (the PDF reader for document uploads)
 //   models/<model id>/{config.json, tokenizer.json, tokenizer_config.json, onnx/model*.onnx}
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -23,6 +24,9 @@ const cacheDir = path.resolve(process.argv[3] || path.join(root, '.asset-cache')
 const workerSource = fs.readFileSync(path.join(root, 'site/js/workers/embed.worker.js'), 'utf8');
 const transformersVersion = workerSource.match(/@huggingface\/transformers@([^/'"]+)\//)?.[1];
 if (!transformersVersion) throw new Error('Could not find the transformers.js version in embed.worker.js.');
+const pdfSource = fs.readFileSync(path.join(root, 'site/js/documents/pdf.js'), 'utf8');
+const pdfjsVersion = pdfSource.match(/PDFJS_VERSION = '([^']+)'/)?.[1];
+if (!pdfjsVersion) throw new Error('Could not find the pdf.js version in documents/pdf.js.');
 
 const ORT_FILES = [
   'ort-wasm-simd-threaded.asyncify.mjs',
@@ -85,8 +89,13 @@ const ort = await npmPackage('onnxruntime-web', ortVersion);
 for (const f of ORT_FILES) copyInto(path.join(ort, 'dist', f), `vendor/onnxruntime-web/${f}`);
 copyInto(path.join(ort, 'LICENSE'), 'vendor/onnxruntime-web/LICENSE', { optional: true });
 
+const pdfjs = await npmPackage('pdfjs-dist', pdfjsVersion);
+// The legacy build, which supports older browsers (see documents/pdf.js).
+for (const f of ['pdf.min.mjs', 'pdf.worker.min.mjs']) copyInto(path.join(pdfjs, 'legacy/build', f), `vendor/pdfjs/${f}`);
+copyInto(path.join(pdfjs, 'LICENSE'), 'vendor/pdfjs/LICENSE', { optional: true });
+
 for (const f of MODEL_FILES) {
   await cached(`https://huggingface.co/${EMBEDDING.model}/resolve/main/${f}`, path.join('hf', EMBEDDING.model, f), path.join('models', EMBEDDING.model, f));
 }
 
-console.log(`Mirrored transformers.js ${transformersVersion}, ONNX Runtime Web ${ortVersion} and ${EMBEDDING.model} (${EMBEDDING.dtype}) into ${siteDir}.`);
+console.log(`Mirrored transformers.js ${transformersVersion}, ONNX Runtime Web ${ortVersion}, pdf.js ${pdfjsVersion} and ${EMBEDDING.model} (${EMBEDDING.dtype}) into ${siteDir}.`);

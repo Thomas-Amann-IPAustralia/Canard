@@ -37,10 +37,19 @@ class Settings:
     local_root: Path = REPO_ROOT / "data"
     commit_name: str = "Canard"
     commit_email: str = "canard@users.noreply.github.com"
+    # Optional AI refinement of document chunks (see llm.py). Off unless a key is set.
+    llm_provider: str = "gemini"
+    llm_api_key: str = ""
+    llm_model: str = ""
+    llm_base_url: str = ""
 
     @property
     def writable(self) -> bool:
         return bool(self.admin_password)
+
+    @property
+    def llm_enabled(self) -> bool:
+        return bool(self.llm_api_key)
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -70,4 +79,8 @@ class Settings:
             local_root=Path(_env("CANARD_LOCAL_ROOT", str(REPO_ROOT / "data"))),
             commit_name=_env("CANARD_COMMIT_NAME", "Canard"),
             commit_email=_env("CANARD_COMMIT_EMAIL", "canard@users.noreply.github.com"),
+            llm_provider=_env("CANARD_LLM_PROVIDER", "gemini").lower(),
+            llm_api_key=_env("CANARD_LLM_API_KEY"),
+            llm_model=_env("CANARD_LLM_MODEL"),
+            llm_base_url=_env("CANARD_LLM_BASE_URL"),
         )

@@ -1,4 +1,4 @@
-// The side pane: one entry's summary and source link, or a summary of a selection,
+// The side pane: one entry's summary and source link (if it has one), or a summary of a selection,
 // with tag editing for both.
 import { $, el, icon, formatDate, plural } from './ui.js';
 import { tagSession, unlock } from './tagging.js';
@@ -93,6 +93,14 @@ function countLine(points, key, label) {
   return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([v, c]) => `${c} in ${label(v)}`).join(' · ');
 }
 
+/** Where an entry came from: a spreadsheet row, or a part of a document (rows start at 2, after the header). */
+function sourceLine(sheet, p) {
+  if (sheet?.kind === 'document') {
+    return el('div', {}, el('dt', { text: 'Document' }), el('dd', { text: `${sheet.filename}, part ${p.row - 1} of ${sheet.rows}` }));
+  }
+  return el('div', {}, el('dt', { text: 'Spreadsheet' }), el('dd', { text: sheet ? `${sheet.filename}, row ${p.row}` : `Row ${p.row}` }));
+}
+
 function single(app, i) {
   const p = app.state.points[i];
   const sheet = app.state.plot.sheets.find((s) => s.id === p.sheet);
@@ -106,10 +114,11 @@ function single(app, i) {
     el('dl', { class: 'detail-meta' },
       el('div', {}, el('dt', { text: 'Published' }), el('dd', { text: formatDate(p.date) })),
       el('div', {}, el('dt', { text: 'Source type' }), el('dd', { text: p.sourceType })),
-      el('div', {}, el('dt', { text: 'Spreadsheet' }), el('dd', { text: sheet ? `${sheet.filename}, row ${p.row}` : `Row ${p.row}` }))),
-    el('a', { class: 'btn btn-primary source-link', href: p.link, target: '_blank', rel: 'noopener noreferrer' },
-      el('span', { text: 'Open original source' }), icon('external')),
-    el('p', { class: 'source-host', text: hostOf(p.link) }),
+      sourceLine(sheet, p)),
+    ...(p.link ? [
+      el('a', { class: 'btn btn-primary source-link', href: p.link, target: '_blank', rel: 'noopener noreferrer' },
+        el('span', { text: 'Open original source' }), icon('external')),
+      el('p', { class: 'source-host', text: hostOf(p.link) })] : []),
     tagEditor(app, { chips: (p.tags || []).map((tag) => ({ tag })), ids: [p.id], label: 'Tags for this entry' }),
     el('section', { class: 'detail-summary', 'aria-label': 'Summary' }, el('h4', { text: 'Summary' }), paragraphs(p.summary)),
   );

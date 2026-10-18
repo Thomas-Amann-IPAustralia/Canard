@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import re
 from contextlib import asynccontextmanager
+from typing import Literal
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -22,6 +23,7 @@ from . import operations as ops
 from .auth import FailureLimiter, SessionTokens, passwords_match
 from .config import Settings
 from .errors import ApiError
+from .llm import LlmClient
 from .schema import EMBEDDING, LIMITS
 from .store import GitHubStore, LocalStore
 from .tokens import count_tokens, warm_up
@@ -51,19 +53,39 @@ class Embedding(BaseModel):
     normalize: bool
     dim: int
 
+class SheetBody(BaseModel):
+    filename: str = Field(min_length=1, max_length=200)
+    kind: Literal["spreadsheet", "document"] = "spreadsheet"
+    csv: str = Field(max_length=LIMITS["maxCsvBytes"])
+    vectors: list[list[float]]
+
 class UploadBody(BaseModel):
     password: str = Field(max_length=500)
     plotId: str | None = None
     newPlot: NewPlot | None = None
-    filename: str = Field(min_length=1, max_length=200)
-    csv: str = Field(max_length=LIMITS["maxCsvBytes"])
-    vectors: list[list[float]]
+    # Either a list of sheets (one per spreadsheet or document) or, from older pages, a single CSV.
+    sheets: list[SheetBody] | None = Field(default=None, min_length=1, max_length=LIMITS["maxFilesPerUpload"])
+    filename: str | None = Field(default=None, min_length=1, max_length=200)
+    csv: str | None = Field(default=None, max_length=LIMITS["maxCsvBytes"])
+    vectors: list[list[float]] | None = None
     baseIds: list[str]
     coords: dict[str, list[float]]
     layoutParams: dict = Field(default_factory=dict)
     embedding: Embedding
     clusters: dict | None = None
     clusterParams: dict = Field(default_factory=dict)
+
+class RefineUnit(BaseModel):
+    heading: str = Field(default="", max_length=300)
+    text: str = Field(min_length=1, max_length=LIMITS["maxRefineChars"])
+
+class RefineBody(BaseModel):
+    password: str = Field(max_length=500)
+    title: str = Field(default="", max_length=300)
+    units: list[RefineUnit] = Field(min_length=1, max_length=LIMITS["maxRefineUnits"])
+    hints: list[int] = Field(default_factory=list, max_length=LIMITS["maxRefineUnits"])
+    targetWords: int = Field(default=250, ge=20, le=400)
+    maxWords: int = Field(default=350, ge=20, le=400)
 
 class ClustersBody(BaseModel):
     password: str = Field(max_length=500)
@@ -86,14 +108,22 @@ def build_store(settings: Settings):
     return LocalStore(settings.local_root)
 
 
-def create_app(settings: Settings | None = None, store=None) -> FastAPI:
+def build_llm(settings: Settings) -> LlmClient | None:
+    if not settings.llm_enabled:
+        return None
+    return LlmClient(settings.llm_provider, settings.llm_api_key, settings.llm_model, settings.llm_base_url)
+
+
+def create_app(settings: Settings | None = None, store=None, llm=None) -> FastAPI:
     settings = settings or Settings.from_env()
+    llm = llm or build_llm(settings)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         app.state.store = store or build_store(settings)
         warm_up()
-        log.info("Canard API %s ready (store=%s, writable=%s)", VERSION, app.state.store.kind, settings.writable)
+        log.info("Canard API %s ready (store=%s, writable=%s, ai=%s)", VERSION, app.state.store.kind,
+                 settings.writable, f"{llm.provider}/{llm.model}" if llm else "off")
         yield
         await app.state.store.close()
 
@@ -147,7 +177,7 @@ def create_app(settings: Settings | None = None, store=None) -> FastAPI:
     @app.get("/api/health")
     async def health():
         return {"ok": True, "version": VERSION, "store": app.state.store.kind, "writable": settings.writable,
-                "embedding": EMBEDDING, "limits": LIMITS}
+                "embedding": EMBEDDING, "limits": LIMITS, "llm": llm is not None}
 
     @app.post("/api/auth/check")
     async def auth_check(body: PasswordBody, request: Request):
@@ -170,25 +200,53 @@ def create_app(settings: Settings | None = None, store=None) -> FastAPI:
                 EMBEDDING["model"], EMBEDDING["dtype"], EMBEDDING["pooling"], EMBEDDING["normalize"], EMBEDDING["dim"]):
             raise ApiError(409, "MODEL_MISMATCH", "The page used a different embedding model from the server. "
                                                   "Reload the page and try again.")
-        result = validate_csv_text(body.csv)
-        problems = result["errors"] or check_token_limits(result["rows"], count_tokens)
-        if problems:
-            raise ApiError(422, "INVALID_CSV", "The spreadsheet was rejected.", [p.to_dict() for p in problems])
-        ops.validate_vectors(body.vectors, len(result["rows"]))
+        if body.sheets is None:
+            if body.csv is None or body.vectors is None:
+                raise ApiError(400, "BAD_REQUEST", "Nothing to upload.")
+            body.sheets = [SheetBody(filename=body.filename or "upload.csv", csv=body.csv, vectors=body.vectors)]
+        sheets, warnings, total = [], [], 0
+        for sheet in body.sheets:
+            filename = re.sub(r"[\x00-\x1f/\\]", "_", sheet.filename.strip())[:200] or "upload.csv"
+            result = validate_csv_text(sheet.csv)
+            problems = result["errors"] or check_token_limits(result["rows"], count_tokens)
+            if problems:
+                what = "spreadsheet" if sheet.kind == "spreadsheet" else "document"
+                raise ApiError(422, "INVALID_CSV", f"The {what} {filename} was rejected.",
+                               [{**p.to_dict(), "file": filename} for p in problems])
+            ops.validate_vectors(sheet.vectors, len(result["rows"]))
+            total += len(result["rows"])
+            warnings += [{**w.to_dict(), "file": filename} for w in result["warnings"]]
+            sheets.append({"rows": result["rows"], "vectors": sheet.vectors, "filename": filename,
+                           "csv_text": sheet.csv, "kind": sheet.kind})
+        if total > LIMITS["maxRowsPerUpload"]:
+            raise ApiError(400, "TOO_MANY_ROWS", f"This upload has {total} entries; at most "
+                                                 f"{LIMITS['maxRowsPerUpload']} can be uploaded at once.")
         new_plot = None
         if body.newPlot:
             name = body.newPlot.name.strip()
             if not name:
                 raise ApiError(400, "BAD_REQUEST", "Give the new plot a name.")
             new_plot = {"name": name, "description": body.newPlot.description.strip()}
-        filename = re.sub(r"[\x00-\x1f/\\]", "_", body.filename.strip())[:200] or "upload.csv"
-        op = ops.upload(rows=result["rows"], vectors=body.vectors, coords=body.coords, base_ids=body.baseIds,
-                        filename=filename, csv_text=body.csv, plot_id=body.plotId, new_plot=new_plot,
-                        embedding=emb.model_dump(), layout_params=body.layoutParams,
+        op = ops.upload(sheets=sheets, coords=body.coords, base_ids=body.baseIds, plot_id=body.plotId,
+                        new_plot=new_plot, embedding=emb.model_dump(), layout_params=body.layoutParams,
                         clusters=body.clusters, cluster_params=body.clusterParams)
         out = await app.state.store.transaction(op)
-        out["warnings"] = [w.to_dict() for w in result["warnings"]]
+        out["warnings"] = warnings
         return out
+
+    @app.post("/api/documents/refine")
+    async def refine(body: RefineBody, request: Request):
+        """Regroup a document's units into titled passages with the configured language model."""
+        if llm is None:
+            raise ApiError(503, "LLM_DISABLED", "AI refinement is not set up on this server.")
+        require_password(request, body.password, scope="admin")
+        if sum(len(u.text) for u in body.units) > LIMITS["maxRefineChars"]:
+            raise ApiError(400, "TOO_LARGE", "Send at most "
+                                             f"{LIMITS['maxRefineChars']:,} characters of text per request.")
+        hints = sorted({h for h in body.hints if 0 < h < len(body.units)})
+        groups = await llm.refine(body.title.strip(), [u.model_dump() for u in body.units], hints,
+                                  min(body.targetWords, body.maxWords), body.maxWords)
+        return {"groups": groups}
 
     @app.post("/api/plots/{plot_id}/sheets/{sheet_id}/delete")
     async def delete_sheet(plot_id: str, sheet_id: str, body: PasswordBody, request: Request):

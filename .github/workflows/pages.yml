@@ -30,7 +30,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: .asset-cache
-          key: model-assets-${{ hashFiles('scripts/fetch-model-assets.mjs', 'site/js/schema.js', 'site/js/workers/embed.worker.js') }}
+          key: model-assets-${{ hashFiles('scripts/fetch-model-assets.mjs', 'site/js/schema.js', 'site/js/workers/embed.worker.js', 'site/js/documents/pdf.js') }}
       - name: Assemble the site
         env:
           API_URL: ${{ vars.CANARD_API_URL }}

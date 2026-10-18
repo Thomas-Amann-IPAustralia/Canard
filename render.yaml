@@ -33,3 +33,8 @@ services:
         sync: false
       - key: CANARD_TAG_PASSWORD
         sync: false
+      # Optional: turns on "Refine the chunks with AI" for document uploads (see README).
+      - key: CANARD_LLM_API_KEY
+        sync: false
+      - key: CANARD_LLM_PROVIDER
+        value: gemini

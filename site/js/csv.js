@@ -11,6 +11,8 @@ import { COLUMNS, LIMITS, EMBEDDING, embeddingText } from './schema.js';
 
 const EXPECTED_HEADERS = COLUMNS.map((c) => c.header);
 const EXPECTED_LIST = EXPECTED_HEADERS.join(', ');
+const LINK_INDEX = COLUMNS.findIndex((c) => c.key === 'link');
+const REQUIRED_LIST = 'Title, Summary, Publication Date and Source type';
 
 const MONTHS = {
   jan: 1, january: 1, feb: 2, february: 2, mar: 3, march: 3, apr: 4, april: 4,
@@ -357,9 +359,10 @@ export function validateCsvText(input) {
     let rowOk = true;
     const values = [entry.title, entry.summary, entry.link, fields[3].trim(), entry.sourceType];
     values.forEach((v, i) => {
-      if (v === '') {
+      // The source link is optional (document chunks often have none).
+      if (v === '' && i !== LINK_INDEX) {
         rowOk = false;
-        add(new CsvProblem('MISSING_VALUE', `Row ${row}: ${EXPECTED_HEADERS[i]} is empty. Every entry needs a value in all five columns.`, row, EXPECTED_HEADERS[i]));
+        add(new CsvProblem('MISSING_VALUE', `Row ${row}: ${EXPECTED_HEADERS[i]} is empty. Every entry needs a ${REQUIRED_LIST}.`, row, EXPECTED_HEADERS[i]));
       }
     });
     if (entry.link) {
@@ -431,13 +434,16 @@ export function capProblems(errors) {
     new CsvProblem('MORE_ERRORS', `…and ${extra} more problem${extra === 1 ? '' : 's'}. Fix the ones above and upload again to see the rest.`)];
 }
 
-/** Quote a value for CSV output, defusing spreadsheet formula injection. */
-export function csvCell(value) {
+/**
+ * Quote a value for CSV output. By default this defuses spreadsheet formula injection;
+ * pass defuse: false for files that are stored and parsed again, not opened in Excel.
+ */
+export function csvCell(value, { defuse = true } = {}) {
   let v = value == null ? '' : String(value);
-  if (/^[=+\-@\t\r]/.test(v)) v = `'${v}`;
+  if (defuse && /^[=+\-@\t\r]/.test(v)) v = `'${v}`;
   return /[",\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
 }
 
-export function toCsv(rows) {
-  return `${rows.map((r) => r.map(csvCell).join(',')).join('\r\n')}\r\n`;
+export function toCsv(rows, options = {}) {
+  return `${rows.map((r) => r.map((v) => csvCell(v, options)).join(',')).join('\r\n')}\r\n`;
 }

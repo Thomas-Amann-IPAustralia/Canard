@@ -305,3 +305,104 @@ def test_read_only_without_admin_password(data_dir):
         assert c.get("/api/health").json()["writable"] is False
         r = c.post("/api/auth/check", json={"password": ""})
         assert r.status_code == 503
+
+
+def test_upload_several_sheets_in_one_commit(client, data_dir):
+    doc_csv = HEADER + "Report — Intro,First chunk of the report.,,2024-05-01,Document\n" \
+                       "Report — Method,Second chunk of the report.,,2024-05-01,Document\n"
+    body = upload_body(5)
+    sheet_csv = body.pop("csv")
+    vectors = body.pop("vectors")
+    del body["filename"]
+    body["sheets"] = [
+        {"filename": "sheet.csv", "kind": "spreadsheet", "csv": sheet_csv, "vectors": vectors[:3] + vectors[3:]},
+        {"filename": "report.pdf", "kind": "document", "csv": doc_csv, "vectors": [unit_vector(50), unit_vector(51)]},
+    ]
+    body["coords"] = layout(7)
+    body["clusters"] = clusters(7)
+    r = client.post("/api/upload", json=body)
+    assert r.status_code == 200, r.text
+    out = r.json()
+    sids = out["sheets"]
+    assert len(sids) == 2 and out["sheet"] == sids[0]
+    pts = out["points"]["points"]
+    assert [p["sheet"] for p in pts] == [sids[0]] * 5 + [sids[1]] * 2
+    assert pts[5]["link"] == "" and pts[5]["title"] == "Report — Intro"
+    assert [(s["filename"], s["kind"], s["rows"]) for s in out["plot"]["sheets"]] == [
+        ("sheet.csv", "spreadsheet", 5), ("report.pdf", "document", 2)]
+    pid = out["plot"]["id"]
+    for sid in sids:
+        assert (data_dir / f"plots/{pid}/sheets/{sid}/source.csv").exists()
+    assert read(data_dir, f"plots/{pid}/sheets/{sids[1]}/vectors.json")["ids"] == [f"{sids[1]}-2", f"{sids[1]}-3"]
+    # Deleting the document removes only its points.
+    out = client.post(f"/api/plots/{pid}/sheets/{sids[1]}/delete", json={"password": "admin-pw"}).json()
+    assert len(out["points"]["points"]) == 5
+
+
+def test_upload_sheet_problems_name_the_file(client):
+    body = upload_body(1)
+    for k in ("csv", "vectors", "filename"):
+        body.pop(k)
+    body["coords"], body["clusters"] = layout(2), clusters(2)
+    body["sheets"] = [
+        {"filename": "a.md", "kind": "document", "csv": make_csv(1), "vectors": [unit_vector(1)]},
+        {"filename": "b.md", "kind": "document", "csv": HEADER + "T,,,2024-01-01,Document\n", "vectors": [unit_vector(2)]},
+    ]
+    r = client.post("/api/upload", json=body)
+    assert r.status_code == 422
+    err = r.json()["error"]
+    assert "b.md" in err["message"] and err["problems"][0]["file"] == "b.md"
+    body["sheets"][1]["kind"] = "poster"
+    assert client.post("/api/upload", json=body).status_code == 400
+
+
+class FakeLlm:
+    provider, model = "fake", "fake-1"
+
+    def __init__(self, reply):
+        self.reply = reply
+        self.calls = []
+
+    async def refine(self, title, units, hints, target_words, max_words):
+        from app.llm import validate_groups
+        self.calls.append((title, units, hints))
+        return validate_groups(self.reply, len(units))
+
+
+def llm_client(data_dir, llm):
+    settings = Settings(admin_password="admin-pw", session_secret="s", allowed_origins=[ORIGIN], local_root=data_dir)
+    return TestClient(create_app(settings, store=LocalStore(data_dir), llm=llm))
+
+
+REFINE = {"password": "admin-pw", "title": "Report",
+          "units": [{"heading": "Intro", "text": "One."}, {"heading": "Intro", "text": "Two."},
+                    {"heading": "Method", "text": "Three."}],
+          "hints": [2, 0, 9]}
+
+
+def test_refine_groups_units(data_dir):
+    fake = FakeLlm({"groups": [{"start": 0, "end": 1, "title": "  The\nopening "}, {"start": 2, "end": 2, "title": "How"}]})
+    with llm_client(data_dir, fake) as c:
+        assert c.get("/api/health").json()["llm"] is True
+        r = c.post("/api/documents/refine", json=REFINE)
+        assert r.status_code == 200, r.text
+        assert r.json()["groups"] == [{"start": 0, "end": 1, "title": "The opening"}, {"start": 2, "end": 2, "title": "How"}]
+        assert fake.calls[0][2] == [2]
+        assert c.post("/api/documents/refine", json={**REFINE, "password": "nope"}).status_code == 401
+
+
+def test_refine_rejects_bad_groupings(data_dir):
+    for reply in ({"groups": [{"start": 0, "end": 0, "title": "A"}, {"start": 2, "end": 2, "title": "B"}]},
+                  {"groups": [{"start": 0, "end": 1, "title": "A"}]},
+                  {"groups": [{"start": 0, "end": 2, "title": ""}]},
+                  {"groups": [{"start": 0, "end": 3, "title": "A"}]},
+                  {"nope": True}):
+        with llm_client(data_dir, FakeLlm(reply)) as c:
+            r = c.post("/api/documents/refine", json=REFINE)
+            assert r.status_code == 502 and r.json()["error"]["code"] == "LLM_BAD_OUTPUT", reply
+
+
+def test_refine_disabled_without_key(client):
+    assert client.get("/api/health").json()["llm"] is False
+    r = client.post("/api/documents/refine", json=REFINE)
+    assert r.status_code == 503 and r.json()["error"]["code"] == "LLM_DISABLED"

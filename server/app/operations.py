@@ -120,9 +120,15 @@ def _cluster_info(now: str, params: dict) -> dict:
     return {"computed": now, "params": params}
 
 
-def upload(*, rows: list[dict], vectors: list[list[float]], coords: dict, base_ids: list[str], filename: str,
-           csv_text: str, plot_id: str | None, new_plot: dict | None, embedding: dict, layout_params: dict,
-           clusters: dict | None = None, cluster_params: dict | None = None):
+SHEET_KINDS = ("spreadsheet", "document")
+
+
+def upload(*, sheets: list[dict], coords: dict, base_ids: list[str], plot_id: str | None, new_plot: dict | None,
+           embedding: dict, layout_params: dict, clusters: dict | None = None, cluster_params: dict | None = None):
+    """Add one or more sheets in a single commit. Each sheet is {rows, vectors, filename, csv_text, kind}; a
+    document's chunks are a sheet too. New points follow the order of the sheets, then of their rows."""
+    rows = [r for s in sheets for r in s["rows"]]
+
     async def op(reader: Reader):
         index = await _load_index(reader)
         now = docs.now_iso()
@@ -168,17 +174,23 @@ def upload(*, rows: list[dict], vectors: list[list[float]], coords: dict, base_i
             spelling.setdefault(r["sourceType"].lower(), r["sourceType"])
 
         sheet_ids = {s["id"] for s in plot["sheets"]}
-        sid = f"s{now[:10].replace('-', '')}-{docs.random_suffix()}"
-        while sid in sheet_ids:
+        sids = []
+        for _ in sheets:
             sid = f"s{now[:10].replace('-', '')}-{docs.random_suffix()}"
+            while sid in sheet_ids:
+                sid = f"s{now[:10].replace('-', '')}-{docs.random_suffix()}"
+            sheet_ids.add(sid)
+            sids.append(sid)
         new_points = [{
             "id": f"{sid}-{r['row']}", "sheet": sid, "row": r["row"], "title": r["title"], "summary": r["summary"],
             "link": r["link"], "date": r["date"], "sourceType": spelling[r["sourceType"].lower()], "tags": [],
-        } for r in rows]
+        } for sid, sheet in zip(sids, sheets) for r in sheet["rows"]]
+        sheet_entries = [{"id": sid, "filename": sheet["filename"], "uploaded": now, "rows": len(sheet["rows"]),
+                          "kind": sheet.get("kind", "spreadsheet")} for sid, sheet in zip(sids, sheets)]
 
         plot = {**plot, "updated": now, "version": plot["version"] + 1,
                 "layout": {"computed": now, "methods": METHOD_KEYS, "params": layout_params},
-                "sheets": plot["sheets"] + [{"id": sid, "filename": filename, "uploaded": now, "rows": len(rows)}]}
+                "sheets": plot["sheets"] + sheet_entries}
         # Clusters cover the whole plot, so an upload without them (from an older page)
         # drops the old ones rather than leaving the new entries out.
         if grouping is None:
@@ -187,19 +199,26 @@ def upload(*, rows: list[dict], vectors: list[list[float]], coords: dict, base_i
             plot["clustering"] = _cluster_info(now, cluster_params or {})
         points = _with_clusters({**points, "version": plot["version"], "methods": METHOD_KEYS,
                                  "points": points["points"] + new_points, "coords": layout}, grouping)
-        vectors_doc = {"schema": docs.SCHEMA, "sheet": sid, "model": EMBEDDING["model"], "dim": EMBEDDING["dim"],
-                       "ids": [p["id"] for p in new_points], "vectors": [_round(v, 6) for v in vectors]}
         index = _upsert_index(index, plot, len(points["points"]))
         files = {
             "index.json": docs.dump_index(index),
             docs.plot_path(pid, "plot.json"): docs.dump_plot(plot),
             docs.plot_path(pid, "points.json"): docs.dump_points(points),
-            docs.sheet_dir(pid, sid) + "source.csv": csv_text.encode("utf-8"),
-            docs.sheet_dir(pid, sid) + "vectors.json": docs.dump_vectors(vectors_doc),
         }
+        for sid, sheet in zip(sids, sheets):
+            ids = [f"{sid}-{r['row']}" for r in sheet["rows"]]
+            vectors_doc = {"schema": docs.SCHEMA, "sheet": sid, "model": EMBEDDING["model"], "dim": EMBEDDING["dim"],
+                           "ids": ids, "vectors": [_round(v, 6) for v in sheet["vectors"]]}
+            files[docs.sheet_dir(pid, sid) + "source.csv"] = sheet["csv_text"].encode("utf-8")
+            files[docs.sheet_dir(pid, sid) + "vectors.json"] = docs.dump_vectors(vectors_doc)
         noun = "entry" if len(rows) == 1 else "entries"
-        message = f"Add {len(rows)} {noun} from {filename} to plot \"{plot['name']}\""
-        return Change(files, message), {"plot": plot, "points": points, "index": index, "sheet": sid}
+        if len(sheets) == 1:
+            source = sheets[0]["filename"]
+        else:
+            kinds = {s.get("kind", "spreadsheet") for s in sheets}
+            source = f"{len(sheets)} {'documents' if kinds == {'document'} else 'files'}"
+        message = f"Add {len(rows)} {noun} from {source} to plot \"{plot['name']}\""
+        return Change(files, message), {"plot": plot, "points": points, "index": index, "sheet": sids[0], "sheets": sids}
 
     return op
 

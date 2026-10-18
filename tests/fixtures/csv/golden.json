@@ -52,7 +52,7 @@
     "code": "MISSING_VALUE",
     "row": 3,
     "column": "Summary",
-    "message": "Row 3: Summary is empty. Every entry needs a value in all five columns."
+    "message": "Row 3: Summary is empty. Every entry needs a Title, Summary, Publication Date and Source type."
    }
   ],
   "warnings": [],
@@ -288,29 +288,46 @@
     "code": "MISSING_VALUE",
     "row": 2,
     "column": "Title",
-    "message": "Row 2: Title is empty. Every entry needs a value in all five columns."
-   },
-   {
-    "code": "MISSING_VALUE",
-    "row": 3,
-    "column": "Source link",
-    "message": "Row 3: Source link is empty. Every entry needs a value in all five columns."
+    "message": "Row 2: Title is empty. Every entry needs a Title, Summary, Publication Date and Source type."
    },
    {
     "code": "MISSING_VALUE",
     "row": 3,
     "column": "Publication Date",
-    "message": "Row 3: Publication Date is empty. Every entry needs a value in all five columns."
+    "message": "Row 3: Publication Date is empty. Every entry needs a Title, Summary, Publication Date and Source type."
    },
    {
     "code": "MISSING_VALUE",
     "row": 3,
     "column": "Source type",
-    "message": "Row 3: Source type is empty. Every entry needs a value in all five columns."
+    "message": "Row 3: Source type is empty. Every entry needs a Title, Summary, Publication Date and Source type."
    }
   ],
   "warnings": [],
   "rows": []
+ },
+ {
+  "name": "source link is optional",
+  "errors": [],
+  "warnings": [],
+  "rows": [
+   {
+    "row": 2,
+    "title": "No link",
+    "summary": "A chunk of a document.",
+    "link": "",
+    "date": "2024-01-01",
+    "sourceType": "Document"
+   },
+   {
+    "row": 3,
+    "title": "Also none",
+    "summary": "Another chunk.",
+    "link": "",
+    "date": "2024-01-02",
+    "sourceType": "Document"
+   }
+  ]
  },
  {
   "name": "invalid links",

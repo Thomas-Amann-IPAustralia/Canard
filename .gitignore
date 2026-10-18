@@ -11,4 +11,5 @@ _site/
 .asset-cache/
 site/vendor/transformers/
 site/vendor/onnxruntime-web/
+site/vendor/pdfjs/
 site/models/Xenova/

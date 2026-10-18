@@ -197,12 +197,14 @@
    {
     "code": "MISSING_VALUE",
     "row": 3
-   },
-   {
-    "code": "MISSING_VALUE",
-    "row": 3
    }
   ]
+ },
+ {
+  "name": "source link is optional",
+  "csv": "Title,Summary,Source link,Publication Date,Source type\nNo link,A chunk of a document.,,2024-01-01,Document\nAlso none,Another chunk.,  ,2024-01-02,Document\n",
+  "rows": 2,
+  "errors": []
  },
  {
   "name": "invalid links",

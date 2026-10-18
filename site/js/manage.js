@@ -102,15 +102,21 @@ export function openManage(app) {
   const render = () => {
     const current = app.state.plot;
     const rows = current.sheets.map((sheet) => {
+      // A document's original is not stored, only the chunks made from it (as a CSV).
+      const isDoc = sheet.kind === 'document';
       const actions = el('div', { class: 'sheet-actions' },
-        el('a', { class: 'btn btn-small', href: sourceCsvUrl(current.id, sheet.id), download: sheet.filename, text: 'Download original' }),
+        el('a', {
+          class: 'btn btn-small', href: sourceCsvUrl(current.id, sheet.id),
+          download: isDoc ? `${sheet.filename.replace(/\.[a-z0-9]+$/i, '')}-chunks.csv` : sheet.filename,
+          text: isDoc ? 'Download chunks' : 'Download original',
+        }),
         el('button', {
           class: 'btn btn-small btn-danger-quiet', type: 'button', text: 'Delete…',
           on: {
             click: () => {
               actions.replaceWith(passwordForm({
                 label: `Delete ${sheet.filename} and its ${plural(sheet.rows, 'entry', 'entries')} (including their tags) from this plot?`,
-                confirmText: 'Delete spreadsheet',
+                confirmText: isDoc ? 'Delete document' : 'Delete spreadsheet',
                 onSubmit: async (password) => {
                   const out = await request(`/api/plots/${encodeURIComponent(current.id)}/sheets/${encodeURIComponent(sheet.id)}/delete`, { method: 'POST', body: { password } });
                   noteVersion(current.id, out.plot.version);
@@ -125,12 +131,12 @@ export function openManage(app) {
       return el('li', { class: 'sheet' },
         el('div', { class: 'sheet-info' },
           el('strong', { text: sheet.filename }),
-          el('span', { class: 'entry-meta', text: `${plural(sheet.rows, 'entry', 'entries')} · uploaded ${formatDateTime(sheet.uploaded)}` })),
+          el('span', { class: 'entry-meta', text: `${isDoc ? `Document · ${plural(sheet.rows, 'chunk')}` : plural(sheet.rows, 'entry', 'entries')} · uploaded ${formatDateTime(sheet.uploaded)}` })),
         actions);
     });
     const deletePlot = el('div', { class: 'danger-zone' },
       el('h3', { text: 'Delete this plot' }),
-      el('p', { text: 'Removes the plot, every spreadsheet in it, and all tags. This cannot be undone (although the history stays in the GitHub repository).' }),
+      el('p', { text: 'Removes the plot, every spreadsheet and document in it, and all tags. This cannot be undone (although the history stays in the GitHub repository).' }),
       el('button', {
         class: 'btn btn-danger-quiet', type: 'button', text: 'Delete plot…',
         on: {
@@ -150,10 +156,10 @@ export function openManage(app) {
       }));
     dlg.replaceChildren(el('div', { class: 'form' },
       el('div', { class: 'dialog-head' },
-        el('h2', { id: 'dlg-manage-title', text: `Spreadsheets in “${current.name}”` }),
+        el('h2', { id: 'dlg-manage-title', text: `Spreadsheets and documents in “${current.name}”` }),
         el('button', { class: 'btn btn-icon', type: 'button', 'aria-label': 'Close', on: { click: () => dlg.close() } }, icon('close'))),
       current.description ? el('p', { class: 'lead', text: current.description }) : null,
-      rows.length ? el('ul', { class: 'sheet-list' }, rows) : el('p', { class: 'empty-note', text: 'This plot has no spreadsheets. Upload one to add entries.' }),
+      rows.length ? el('ul', { class: 'sheet-list' }, rows) : el('p', { class: 'empty-note', text: 'This plot has no spreadsheets or documents. Upload one to add entries.' }),
       el('p', { class: 'field-hint', text: 'Deleting needs the upload password. Remaining entries keep their positions and clusters.' }),
       rows.length ? clustersSection(app, render) : null,
       deletePlot));
@@ -172,6 +178,9 @@ export function openHelp() {
     item('From spreadsheet to map',
       'Each row of an uploaded CSV is turned into a 384-dimension vector by the bge-small-en-v1.5 embedding model, using its title and summary. Entries about similar things end up with similar vectors.',
       'The vectors are then projected to two dimensions so they can be plotted. Points close together are semantically similar; the axes themselves have no meaning.'),
+    item('From documents to map',
+      'Uploaded documents (PDF, Word, Markdown or text) are split into passages in the browser. The text is first divided at its headings and paragraphs, and each paragraph is embedded. Consecutive paragraphs are then grouped into chunks of up to about 360 tokens, starting a new chunk at each section heading and wherever the meaning shifts most from one paragraph to the next.',
+      'If the server has an AI service set up, you can also ask it to choose the chunk boundaries and give each chunk a title. It never rewrites the text. Each chunk then becomes an entry, mapped exactly like a spreadsheet row.'),
     item('The four projections',
       'UMAP keeps local neighbourhoods tight while preserving more of the overall shape. t-SNE separates tight clusters very clearly, but the distances between clusters are not meaningful. Gaussian kernel PCA is a smooth, repeatable projection using a Gaussian (RBF) similarity. PCA is a straight linear projection onto the two directions of greatest variation.',
       'All four layouts are calculated when a spreadsheet is uploaded, so switching between them is instant.'),

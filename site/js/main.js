@@ -238,15 +238,15 @@ function renderEmptyState() {
   if (!state.index.plots.length) {
     box.replaceChildren(
       el('h2', { text: 'No plots yet' }),
-      el('p', { text: 'Upload a spreadsheet of sources to create the first semantic map. Each row needs a title, a summary, a source link, a publication date and a source type.' }),
+      el('p', { text: 'Upload a spreadsheet of sources, or documents to split into passages, to create the first semantic map. Each spreadsheet row needs a title, a summary, a publication date and a source type (a source link is optional).' }),
       el('div', { class: 'empty-actions' },
-        el('button', { class: 'btn btn-primary', type: 'button', on: { click: () => openUploadDialog() } }, icon('upload'), el('span', { text: 'Upload a spreadsheet' })),
+        el('button', { class: 'btn btn-primary', type: 'button', on: { click: () => openUploadDialog() } }, icon('upload'), el('span', { text: 'Upload spreadsheet or documents' })),
         el('a', { class: 'btn', href: 'template.csv', download: 'canard-template.csv', text: 'Download the CSV template' })));
     box.hidden = false;
   } else if (state.plot && !state.points.length) {
     box.replaceChildren(el('h2', { text: 'This plot is empty' }),
-      el('p', { text: 'All of its spreadsheets have been deleted. Upload a spreadsheet to add entries.' }),
-      el('div', { class: 'empty-actions' }, el('button', { class: 'btn btn-primary', type: 'button', on: { click: () => openUploadDialog() } }, icon('upload'), el('span', { text: 'Upload a spreadsheet' }))));
+      el('p', { text: 'All of its spreadsheets and documents have been deleted. Upload some to add entries.' }),
+      el('div', { class: 'empty-actions' }, el('button', { class: 'btn btn-primary', type: 'button', on: { click: () => openUploadDialog() } }, icon('upload'), el('span', { text: 'Upload spreadsheet or documents' }))));
     box.hidden = false;
   } else {
     box.hidden = true;

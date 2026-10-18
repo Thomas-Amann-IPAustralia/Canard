@@ -172,6 +172,7 @@ try {
 
   step('delete one document');
   await page.click('#btn-manage');
+  await page.waitForSelector('#dlg-manage .sheet');
   assert.equal(await page.locator('#dlg-manage .sheet').count(), 3);
   await page.click('#dlg-manage .sheet:has-text("notes.docx") button:has-text("Delete")');
   await page.fill('#dlg-manage .confirm-form input', 'admin-pw');
